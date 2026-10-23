@@ -1,0 +1,59 @@
+# ──────────────────────────────────────────────────────────────────────
+# TestFlight crash intake (native edition)
+#
+# A TestFlight build crashes and the tester (or iOS) sends the report.
+# App Store Connect fires this workflow, which fetches the symbolicated
+# crash log, has an agent write a developer-facing title and summary,
+# files a GitHub issue (labels: testflight + bug), and dispatches
+# expo-bot-issue.yml to replicate it on an Expo Simulator, fix and
+# compile it on a macOS worker, open a PR, and verify that PR.
+#
+# Split from testflight-feedback.yml so the event type is known
+# statically; both share scripts/agent/intake-testflight.{sh,mjs}.
+# Run manually against the newest crash:
+#   eas workflow:run testflight-crash.yml
+#
+# Env vars (EAS environment variables, production environment):
+#   EXPO_TOKEN_SIMULATOR, the agent runner's credentials, GITHUB_TOKEN
+#   (see testflight-feedback.yml)
+# ──────────────────────────────────────────────────────────────────────
+name: TestFlight crash intake
+
+on:
+  app_store_connect:
+    beta_feedback:
+      types:
+        - crash
+  workflow_dispatch: {}
+
+jobs:
+  intake:
+    name: 1. File issue and dispatch expo-bot
+    environment: production
+    runs_on: linux-medium
+    image: latest
+    env:
+      FEEDBACK_KIND: crash
+      ASC_FEEDBACK_ID: ${{ app_store_connect.beta_feedback.id }}
+      BASE_BRANCH: main
+    outputs:
+      issue_number: ${{ steps.intake.outputs.issue_number }}
+      issue_url: ${{ steps.intake.outputs.issue_url }}
+      run_url: ${{ steps.intake.outputs.run_url }}
+    steps:
+      - uses: eas/checkout
+      - uses: eas/install_node_modules
+      - id: intake
+        name: Fetch the crash log, triage, file, dispatch
+        run: bash scripts/agent/intake-testflight.sh
+
+  report:
+    name: 2. Intake report
+    type: doc
+    needs: [intake]
+    params:
+      md: |
+        # 💥 TestFlight crash → issue #${{ needs.intake.outputs.issue_number }}
+
+        - 🐙 **[GitHub issue](${{ needs.intake.outputs.issue_url }})**: device, build, and the symbolicated crash log
+        - 🤖 **[expo-bot run](${{ needs.intake.outputs.run_url }})**: replicating on an Expo Simulator, then opening and verifying a PR

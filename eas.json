@@ -37,9 +37,7 @@
   },
   "submit": {
     "testflight": {
-      "ios": {
-        "ascAppId": "SET_ME"
-      }
+      "ios": {}
     }
   }
 }

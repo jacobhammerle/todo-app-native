@@ -1,0 +1,79 @@
+# ──────────────────────────────────────────────────────────────────────
+# TestFlight feedback intake (native edition)
+#
+# A tester takes a screenshot in the TestFlight build and submits
+# feedback. App Store Connect fires this workflow, which:
+#
+#   1. fetch:    pull the submission (comment, tester, device, screenshots)
+#   2. triage:   an agent reads the comment and the screenshots and
+#                decides bug vs feature request, writes a title, repro
+#                steps, and one line of guidance for the replication agent
+#   3. file:     open a GitHub issue (labels: testflight + bug|enhancement)
+#   4. dispatch: expo-bot-issue.yml builds the app, replicates (bug) or
+#                confirms the gap (feature) on an Expo Simulator, writes
+#                and compiles a fix on a macOS worker, opens a PR, and
+#                verifies that PR on a second simulator. Evidence sites
+#                land on the issue and on the PR.
+#
+# Crashes are handled by testflight-crash.yml: one event type per file so
+# the type is known statically even if the trigger context arrives
+# uninterpolated (seen in practice; the script tolerates it).
+#
+# Setup: expo.dev → project → Settings → Connections → App Store Connect,
+# and the workflow file must be on the default branch.
+# Run manually against the newest submission:
+#   eas workflow:run testflight-feedback.yml
+#
+# Env vars (EAS environment variables, production environment):
+#   EXPO_TOKEN_SIMULATOR      personal access token: reads the project's
+#                             ASC API key and dispatches expo-bot-issue
+#   CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY   the triage agent
+#   GITHUB_TOKEN              GitHub token with issues write
+# Logic lives in scripts/agent/intake-testflight.{sh,mjs} and the triage
+# prompt in .eas/testflight-triage-prompt.md (EAS caps YAML at 16 kB).
+# ──────────────────────────────────────────────────────────────────────
+name: TestFlight feedback intake
+
+on:
+  app_store_connect:
+    beta_feedback:
+      types:
+        - screenshot
+  workflow_dispatch: {}
+
+jobs:
+  intake:
+    name: 1. File issue and dispatch expo-bot
+    environment: production
+    runs_on: linux-medium
+    # `latest` has Node 22; the default Linux image ships Node 18.
+    image: latest
+    env:
+      FEEDBACK_KIND: screenshot
+      ASC_FEEDBACK_ID: ${{ app_store_connect.beta_feedback.id }}
+      BASE_BRANCH: main
+    outputs:
+      issue_number: ${{ steps.intake.outputs.issue_number }}
+      issue_url: ${{ steps.intake.outputs.issue_url }}
+      run_url: ${{ steps.intake.outputs.run_url }}
+      kind: ${{ steps.intake.outputs.kind }}
+    steps:
+      - uses: eas/checkout
+      - uses: eas/install_node_modules
+      - id: intake
+        name: Fetch the submission, triage, file, dispatch
+        run: bash scripts/agent/intake-testflight.sh
+
+  report:
+    name: 2. Intake report
+    type: doc
+    needs: [intake]
+    params:
+      md: |
+        # 📲 TestFlight feedback → issue #${{ needs.intake.outputs.issue_number }}
+
+        Triaged as **${{ needs.intake.outputs.kind }}**.
+
+        - 🐙 **[GitHub issue](${{ needs.intake.outputs.issue_url }})**: the tester's comment, screenshots, and the agent triage
+        - 🤖 **[expo-bot run](${{ needs.intake.outputs.run_url }})**: replicating on an Expo Simulator, then opening and verifying a PR
+        - 📲 **Ship**: the fix reaches testers in the next TestFlight build (release-testflight.yml runs on a merge to main)

@@ -2,7 +2,27 @@
 
 A demo of agentic workflows on EAS for a native app. This is the SwiftUI counterpart of [jacobhammerle/todo-app](https://github.com/jacobhammerle/todo-app): the same three-screen todo app, with no Expo SDK, no React Native, and no JavaScript. [EAS Workflows](https://docs.expo.dev/eas/workflows/get-started/) hand work to coding agents, the agents drive the app on [Expo Simulators](https://docs.expo.dev/eas/simulators/) in the cloud, and every step leaves a verdict and screenshots on GitHub. EAS is not only for React Native apps.
 
-What changes when the app is native: [EAS Build](https://docs.expo.dev/build/introduction/) compiles the Xcode project in [ios/](ios/) on every run, because there is no JavaScript to fingerprint, repack, or ship as an [update](https://docs.expo.dev/eas-update/introduction/). The agents that write code run on an EAS macOS worker and compile their change with `xcodebuild` before they push, where the Expo repo gates on `tsc` and lint. The app is iOS only, so there are no Android lanes. The TestFlight feedback loop is not ported. Everything else, the bot, the swarm, the evidence sites, is the same.
+What changes when the app is native: [EAS Build](https://docs.expo.dev/build/introduction/) compiles the Xcode project in [ios/](ios/) on every run, because there is no JavaScript to fingerprint, repack, or ship as an [update](https://docs.expo.dev/eas-update/introduction/). The agents that write code run on an EAS macOS worker and compile their change with `xcodebuild` before they push, where the Expo repo gates on `tsc` and lint. A merge ships as a new TestFlight build, never over the air. The app is iOS only, so there are no Android lanes. Everything else, the feedback loop, the bot, the swarm, the evidence sites, is the same.
+
+## Feature/Bug Agentic Workflow
+
+1. **A tester reports a bug or feature.** They take a screenshot in the [TestFlight](https://docs.expo.dev/submit/testflight/) build, write a short description, and tap Submit.
+2. **An agent files the issue.** App Store Connect [fires](https://docs.expo.dev/eas/workflows/syntax/) an [EAS Workflow](https://docs.expo.dev/eas/workflows/get-started/). An agent reads the description and the screenshot, decides whether it is a bug or a feature request, and opens a GitHub issue with reproduction steps.
+3. **An agent reproduces it on an Expo Simulator.** A second workflow builds the app and boots an [Expo Simulator](https://docs.expo.dev/eas/simulators/) with it, follows the reproduction steps, and takes screenshots as it goes. It posts a verdict on the issue: replicated or not.
+4. **An agent fixes it.** If confirmed, an agent on an EAS macOS worker makes the fix or enhancement in Swift, `xcodebuild` must pass, and it opens a pull request.
+5. **Two agents verify the fix.** One reviews the diff. The other runs the PR's build on a fresh Expo Simulator and taps through the change. The verdict and the [evidence](https://github.com/jacobhammerle/eas-simulator-evidence) land on the PR.
+6. **You merge.** A push to `main` that touches the app builds a new store binary and [submits it to TestFlight](https://docs.expo.dev/submit/testflight/). There is no JavaScript, so there is no over-the-air path; the tester gets the fix in the next TestFlight build.
+
+<br>
+
+```mermaid
+flowchart LR
+    A[TestFlight feedback] --> B[GitHub issue]
+    B --> C[Reproduced on an Expo Simulator]
+    C --> D[Fix PR, compiled on a macOS worker]
+    D --> E[Verified on an Expo Simulator]
+    E --> F[Merge and ship to TestFlight]
+```
 
 ## Comment-driven Agentic Helpers
 

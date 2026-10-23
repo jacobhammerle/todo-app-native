@@ -58,9 +58,14 @@ eas workflow:run qa-swarm.yml
 
 Then open a pull request and comment `@expo-bot preview` on it.
 
-## TestFlight
+For the TestFlight loop, set up signing once from your machine, ship one build, and add yourself as a tester. The `testflight` profile in [eas.json](eas.json) is a store build of the same Xcode project.
 
-The `testflight` profile in [eas.json](eas.json) is a store build of the same Xcode project. It needs Apple credentials (`eas credentials -p ios`) and the numeric App Store Connect app id in `submit.testflight.ios.ascAppId`. It has not been run from this repo yet, and the Expo repo's TestFlight feedback loop is not ported.
+```bash
+eas credentials -p ios                              # distribution cert, profile, App Store Connect API key
+eas build -p ios --profile testflight --submit      # first upload; can create the App Store Connect app
+```
+
+Then put the numeric App Store Connect app id in `submit.testflight.ios.ascAppId` in [eas.json](eas.json), so the submit job in `release-testflight.yml` runs unattended, and [connect the App Store Connect app](https://docs.expo.dev/eas/workflows/syntax/) on expo.dev so a submission fires the intake workflows. The intake files issues with the `testflight` label plus `bug` or `enhancement`; create the first one on the repo (`gh label create testflight`). There is no update channel: after a merge, `release-testflight.yml` builds and submits a new TestFlight build.
 
 ## Or hand it off to your agent
 

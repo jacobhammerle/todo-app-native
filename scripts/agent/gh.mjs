@@ -8,6 +8,8 @@
 //   node scripts/agent/gh.mjs get-pr-diff <pr_number>
 //   node scripts/agent/gh.mjs get-issue <issue_number>
 //   node scripts/agent/gh.mjs create-pr "<title>" <head> <base> "<body>"
+//   node scripts/agent/gh.mjs create-issue "<title>" "<body>" [label,label]
+//   node scripts/agent/gh.mjs list-issues <label> [limit]      (open issues)
 
 import { readFileSync } from "node:fs";
 
@@ -137,6 +139,45 @@ switch (cmd) {
           .map((c) => ({ author: c.user?.login, body: c.body })),
       }),
     );
+    break;
+  }
+  case "list-issues": {
+    // Open issues carrying <label>, newest first, with the first lines of
+    // each body (the tester's quote sits near the top of an intake issue).
+    // Pull requests share the issues endpoint and are dropped.
+    const [label, limit = "30"] = args;
+    const items = await api(
+      "GET",
+      `/repos/${repo}/issues?state=open&labels=${encodeURIComponent(label)}&per_page=${Number(limit) || 30}`,
+    );
+    console.log(
+      JSON.stringify(
+        items
+          .filter((i) => !i.pull_request)
+          .map((i) => ({
+            number: i.number,
+            title: i.title,
+            url: i.html_url,
+            labels: (i.labels ?? []).map((l) => l.name),
+            excerpt: String(i.body ?? "").slice(0, 600),
+          })),
+      ),
+    );
+    break;
+  }
+  case "create-issue": {
+    // Labels must already exist on the repo; unknown names are dropped.
+    const [title, body, labelsCsv] = args;
+    const labels = (labelsCsv ?? "")
+      .split(",")
+      .map((l) => l.trim())
+      .filter(Boolean);
+    const issue = await api("POST", `/repos/${repo}/issues`, {
+      title,
+      body,
+      labels,
+    });
+    console.log(JSON.stringify({ url: issue.html_url, number: issue.number }));
     break;
   }
   case "create-pr": {

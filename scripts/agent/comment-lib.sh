@@ -55,9 +55,22 @@ require_build() {
   fi
 }
 
-# use_agent_token -> the agent runner's credentials must be present
-# (scripts/agent/run-agent.sh check knows the runner's variable names).
-use_agent_token() { bash scripts/agent/run-agent.sh check; }
+# use_agent_token [optional] -> the agent runner's credentials must be
+# present (scripts/agent/run-agent.sh check knows the runner's variable
+# names). With "optional", AGENT_AVAILABLE is exported as 1 or 0 instead
+# of failing, so a caller can skip the agent step.
+use_agent_token() {
+  if [ "${1:-}" = "optional" ]; then
+    if bash scripts/agent/run-agent.sh check optional; then
+      export AGENT_AVAILABLE=1
+    else
+      export AGENT_AVAILABLE=0
+      echo "No agent credentials: the agent step is skipped."
+    fi
+    return 0
+  fi
+  bash scripts/agent/run-agent.sh check
+}
 
 # evidence_thumbs <dir> <site_url> -> up to four screenshots from <dir>, in
 # capture order, as linked thumbnails served by the evidence site. Prints
