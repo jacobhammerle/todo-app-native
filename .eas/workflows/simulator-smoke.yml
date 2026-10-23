@@ -1,0 +1,109 @@
+# ──────────────────────────────────────────────────────────────────────
+# Smoke test the native app on an Expo Simulator
+#
+#   1. build:  EAS Build compiles the SwiftUI app for the iOS Simulator
+#              (skipped when a build id is passed in)
+#   2. smoke:  a Linux worker starts an Expo Simulator with that build
+#              (`eas simulator:start --build-id`), drives the app through
+#              its accessibility tree with agent-device (add a task,
+#              complete it, open Done, open Admin), and screenshots each
+#              step. The script's exit code is the verdict.
+#   3. report: the verdict and the screenshot list, in the run's log
+#
+# Run it on demand (the build id is optional):
+#   eas workflow:run simulator-smoke.yml
+#   eas workflow:run simulator-smoke.yml -F build_id=<id> -F device="iPhone 17 Pro"
+#
+# Env vars required (EAS environment variables, production environment):
+#   EXPO_TOKEN_SIMULATOR   personal access token (sessions are actor-gated,
+#                          the worker's own token cannot create them)
+# ──────────────────────────────────────────────────────────────────────
+name: Smoke test on an Expo Simulator
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "ios/**"
+      - "scripts/**"
+      - "eas.json"
+  workflow_dispatch:
+    inputs:
+      build_id:
+        description: Reuse this EAS simulator build instead of building
+        type: string
+        default: ""
+      device:
+        description: iOS Simulator device, for example "iPhone 17 Pro"
+        type: string
+        default: "iPhone 17"
+
+concurrency:
+  group: ${{ workflow.filename }}-${{ github.ref }}
+  cancel_in_progress: true
+
+jobs:
+  build:
+    name: 1. Build iOS Simulator app (SwiftUI)
+    type: build
+    if: ${{ !inputs.build_id }}
+    params:
+      platform: ios
+      profile: simulator
+      message: Native SimpleTodo smoke-test build
+
+  smoke:
+    name: 2. Run the app on an Expo Simulator
+    # `after`, not `needs`: the build is skipped when a build id is given,
+    # and a skipped `needs` entry would skip this job too.
+    after: [build]
+    environment: production
+    runs_on: linux-medium
+    env:
+      BUILD_ID: ${{ inputs.build_id || after.build.outputs.build_id }}
+      BUILD_STATUS: ${{ after.build.status }}
+      DEVICE: ${{ inputs.device || 'iPhone 17' }}
+    outputs:
+      verdict: ${{ steps.smoke.outputs.verdict }}
+      session_id: ${{ steps.smoke.outputs.session_id }}
+      device: ${{ steps.smoke.outputs.device }}
+    steps:
+      - uses: eas/checkout
+      - id: smoke
+        name: Start the session, drive the app, screenshot each step
+        run: |
+          set -euo pipefail
+          if [ "$BUILD_STATUS" = "failure" ]; then
+            echo "The simulator build failed; nothing to test."
+            exit 1
+          fi
+          if [ -z "$BUILD_ID" ]; then
+            echo "No build id: the build job produced none and none was passed in."
+            exit 1
+          fi
+          bash scripts/expo-simulator/smoke-test.sh --build-id "$BUILD_ID" --device "$DEVICE" --out artifacts
+      - uses: eas/upload_artifact
+        if: ${{ always() }}
+        with:
+          type: other
+          name: smoke-test-screenshots
+          path: |
+            artifacts/**/*
+
+  report:
+    name: 3. Report
+    type: doc
+    after: [smoke]
+    params:
+      md: |
+        # Native app on an Expo Simulator: ${{ after.smoke.status }}
+
+        **Verdict:** ${{ after.smoke.outputs.verdict || 'no verdict (see the smoke job log)' }}
+
+        - Build: `${{ inputs.build_id || after.build.outputs.build_id }}`
+        - Device: ${{ after.smoke.outputs.device || inputs.device || 'iPhone 17' }}
+        - Session: `${{ after.smoke.outputs.session_id }}`
+
+        The screenshots (`01-tasks.png` … `05-admin.png`) and `report.md`
+        are in this run's **Artifacts** as `smoke-test-screenshots`.

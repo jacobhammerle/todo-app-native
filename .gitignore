@@ -1,0 +1,25 @@
+# Xcode
+ios/build/
+ios/DerivedData/
+ios/Pods/
+ios/*.xcworkspace
+ios/Podfile.lock
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+
+# Local simulator builds (scripts/build-simulator-app.sh)
+build/
+
+# Expo Simulators session config (holds a session auth token)
+.env.eas-simulator
+
+# Smoke-test screenshots and reports
+artifacts/
+
+# Tooling
+node_modules/
+.expo/
+.argent/
+.DS_Store
+.claude/settings.local.json

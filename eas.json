@@ -1,0 +1,45 @@
+{
+  "cli": {
+    "version": ">= 25.0.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "base": {
+      "ios": {
+        "scheme": "SimpleTodo",
+        "image": "macos-tahoe-26.5-xcode-26.6"
+      }
+    },
+    "simulator": {
+      "extends": "base",
+      "distribution": "internal",
+      "environment": "preview",
+      "ios": {
+        "simulator": true,
+        "buildConfiguration": "Release"
+      }
+    },
+    "simulator-debug": {
+      "extends": "simulator",
+      "ios": {
+        "buildConfiguration": "Debug"
+      }
+    },
+    "testflight": {
+      "extends": "base",
+      "distribution": "store",
+      "autoIncrement": true,
+      "environment": "production",
+      "ios": {
+        "buildConfiguration": "Release"
+      }
+    }
+  },
+  "submit": {
+    "testflight": {
+      "ios": {
+        "ascAppId": "SET_ME"
+      }
+    }
+  }
+}

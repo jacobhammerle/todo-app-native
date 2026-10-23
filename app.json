@@ -1,0 +1,16 @@
+{
+  "expo": {
+    "name": "Simple Todo",
+    "slug": "simple-todo-native",
+    "version": "1.0.0",
+    "owner": "sunrise-solutions",
+    "ios": {
+      "bundleIdentifier": "com.sunrisesolutions.simpletodo.native"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "6cc601fb-94e9-4956-a66b-36f07c49f97b"
+      }
+    }
+  }
+}

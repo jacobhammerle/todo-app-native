@@ -1,0 +1,64 @@
+# ──────────────────────────────────────────────────────────────────────
+# Build the native iOS Simulator app on EAS
+#
+# No Expo SDK, no React Native: EAS Build compiles the SwiftUI project in
+# ios/ with the `simulator` profile from eas.json (Release, iphonesimulator
+# SDK, no signing). The result is the .tar.gz Expo Simulators installs,
+# either by `--build-id` or by its artifact URL.
+#
+# Run it on demand:
+#   eas workflow:run build-simulator.yml
+# ──────────────────────────────────────────────────────────────────────
+name: Build the iOS Simulator app
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "ios/**"
+      - "scripts/write-build-info.sh"
+      - "eas.json"
+      - "app.json"
+  workflow_dispatch: {}
+
+concurrency:
+  group: ${{ workflow.filename }}-${{ github.ref }}
+  cancel_in_progress: true
+
+jobs:
+  build_ios_simulator:
+    name: Build iOS Simulator app (SwiftUI)
+    type: build
+    params:
+      platform: ios
+      profile: simulator
+      message: Native SimpleTodo simulator build
+
+  whats_next:
+    name: What to do with it
+    type: doc
+    needs: [build_ios_simulator]
+    params:
+      md: |
+        # ✅ Simulator build `${{ needs.build_ios_simulator.outputs.build_id }}` is ready
+
+        Run it on an Expo Simulator and smoke-test it:
+
+        ```
+        eas workflow:run simulator-smoke.yml -F build_id=${{ needs.build_ios_simulator.outputs.build_id }}
+        ```
+
+        Or hand it to a person as a browser preview:
+
+        ```
+        eas workflow:run pr-live-preview.yml -F build_id=${{ needs.build_ios_simulator.outputs.build_id }}
+        ```
+
+        The same binary installs from its artifact URL, the way any native
+        build does (`eas build:view ${{ needs.build_ios_simulator.outputs.build_id }} --json`
+        → `artifacts.applicationArchiveUrl`):
+
+        ```
+        eas simulator:start --platform ios --type agent-device --application-archive-url <url> --name "Native build review" --non-interactive
+        ```

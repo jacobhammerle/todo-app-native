@@ -1,0 +1,96 @@
+# ──────────────────────────────────────────────────────────────────────
+# Live preview: the native app in a browser
+#
+# Builds the SwiftUI app for the iOS Simulator (or reuses a build id),
+# boots an Expo Simulator with it, and prints the browser link. Anyone
+# with project access can drive the app from the link, with no Xcode and
+# no simulator on their machine. The session stops by itself after the
+# duration.
+#
+# Run it on demand:
+#   eas workflow:run pr-live-preview.yml
+#   eas workflow:run pr-live-preview.yml -F build_id=<id> -F duration_minutes=45 -F device="iPhone 17 Pro"
+#   eas workflow:run pr-live-preview.yml -F pr_number=12     (also comments the link on the PR)
+#
+# Env vars required (EAS environment variables, production environment):
+#   EXPO_TOKEN_SIMULATOR   personal access token (sessions are actor-gated)
+#   GITHUB_TOKEN           optional; pull-request write access, for the PR comment
+# ──────────────────────────────────────────────────────────────────────
+name: Live preview on an Expo Simulator
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_id:
+        description: Reuse this EAS simulator build instead of building
+        type: string
+        default: ""
+      # Strings, not numbers: `eas workflow:run -F` sends every value as a string.
+      duration_minutes:
+        description: Minutes before the session stops by itself
+        type: string
+        default: "30"
+      device:
+        description: iOS Simulator device, for example "iPhone 17 Pro"
+        type: string
+        default: "iPhone 17"
+      pr_number:
+        description: Pull request to comment the link on (needs GITHUB_TOKEN)
+        type: string
+        default: ""
+
+jobs:
+  build:
+    name: 1. Build iOS Simulator app (SwiftUI)
+    type: build
+    if: ${{ !inputs.build_id }}
+    params:
+      platform: ios
+      profile: simulator
+      message: Native SimpleTodo live preview
+
+  session:
+    name: 2. Boot an Expo Simulator, print the link
+    after: [build]
+    environment: production
+    runs_on: linux-medium
+    env:
+      BUILD_ID: ${{ inputs.build_id || after.build.outputs.build_id }}
+      BUILD_STATUS: ${{ after.build.status }}
+      DEVICE: ${{ inputs.device || 'iPhone 17' }}
+      DURATION_MINUTES: ${{ inputs.duration_minutes || '30' }}
+      PR_NUMBER: ${{ inputs.pr_number }}
+      GH_REPO: ${{ github.repository }}
+    outputs:
+      preview_url: ${{ steps.session.outputs.preview_url }}
+      session_id: ${{ steps.session.outputs.session_id }}
+    steps:
+      - uses: eas/checkout
+      - id: session
+        name: Start the session
+        run: |
+          set -euo pipefail
+          if [ "$BUILD_STATUS" = "failure" ] || [ -z "$BUILD_ID" ]; then
+            echo "No simulator build to preview."
+            exit 1
+          fi
+          # An uninterpolated or empty pr_number means "no PR comment".
+          if ! [[ "$PR_NUMBER" =~ ^[0-9]+$ ]]; then unset PR_NUMBER; fi
+          if [[ "$GH_REPO" == *'${{'* ]]; then unset GH_REPO; fi
+          bash scripts/expo-simulator/live-preview.sh --build-id "$BUILD_ID" --device "$DEVICE" --minutes "$DURATION_MINUTES"
+
+  preview_link:
+    name: 3. Preview link
+    type: doc
+    needs: [session]
+    params:
+      md: |
+        # 📱 The native app is running on an Expo Simulator
+
+        **[Open the ${{ inputs.device || 'iPhone 17' }} in your browser](${{ needs.session.outputs.preview_url }})**
+
+        The session stops by itself after ${{ inputs.duration_minutes || '30' }} minutes, or stop it early with:
+
+        ```
+        eas simulator:stop --id ${{ needs.session.outputs.session_id }}
+        ```
