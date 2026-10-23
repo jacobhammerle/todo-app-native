@@ -24,3 +24,15 @@ node_modules/
 .argent/
 .DS_Store
 .claude/settings.local.json
+
+# Apple signing and EAS credential files (the testflight profile may create them)
+*.p8
+*.p12
+*.pem
+*.key
+*.mobileprovision
+*.cer
+credentials.json
+
+# Local env files
+.env*.local

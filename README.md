@@ -1,14 +1,71 @@
-# Simple Todo, native edition: EAS + Expo Simulators for a Swift app
+# Agentic Workflows + Expo Simulators, native edition
 
-The same three-screen todo app as [jacobhammerle/todo-app](https://github.com/jacobhammerle/todo-app), rewritten in SwiftUI. There is no Expo SDK, no React Native, and no JavaScript in the app. The point of the repo is the delivery: [EAS Build](https://docs.expo.dev/build/introduction/) compiles the Xcode project, [Expo Simulators](https://docs.expo.dev/eas/simulators/) runs it in the cloud, [agent-device](https://docs.expo.dev/agents/agent-device/) drives it, and [EAS Workflows](https://docs.expo.dev/eas/workflows/get-started/) tie the three together. EAS is not only for React Native apps.
+The native counterpart of [jacobhammerle/todo-app](https://github.com/jacobhammerle/todo-app). That repo is an Expo app; this one is the same three-screen todo app rewritten in SwiftUI, with no Expo SDK, no React Native, and no JavaScript in the app. Both are delivered the same way: [EAS Build](https://docs.expo.dev/build/introduction/) compiles the project, [Expo Simulators](https://docs.expo.dev/eas/simulators/) runs it in the cloud, coding agents drive it, and [EAS Workflows](https://docs.expo.dev/eas/workflows/get-started/) tie the three together. EAS is not only for React Native apps.
 
-| | Expo version | This repo |
+| | [todo-app](https://github.com/jacobhammerle/todo-app) (Expo) | This repo (native) |
 | --- | --- | --- |
-| App | Expo Router + `@expo/ui` | SwiftUI (`ios/SimpleTodo/`) |
-| Build | EAS Build | EAS Build, `simulator` profile in [eas.json](eas.json) |
-| Run in the cloud | Expo Simulators | Expo Simulators, stock iOS Simulator |
-| Drive | argent / agent-device | agent-device, through the accessibility tree |
-| Ship JS changes | EAS Update | Not applicable: every change is a build |
+| App | Expo Router + `@expo/ui` | SwiftUI ([ios/SimpleTodo/](ios/SimpleTodo/)) |
+| Build | EAS Build, fingerprint-matched `preview` builds, repacked with the current JavaScript | EAS Build, `simulator` profile in [eas.json](eas.json); every run builds or takes a build id |
+| Run in the cloud | Expo Simulators, iOS and Android | Expo Simulators, stock iOS Simulator |
+| Drive | argent (QA swarm), agent-device | argent (QA swarm), agent-device (smoke test, live preview, `/tab-check`) |
+| Ship a change | EAS Update when only JavaScript changed, a new build otherwise | A new build, always |
+| Agents | QA swarm, `@expo-bot` PR and issue helpers, TestFlight feedback loop | QA swarm |
+
+## Agentic QA Swarm
+
+One command tests the whole native app at once. Four agents each get their own Expo Simulator in the cloud and one short flow to check, so a full pass takes as long as the slowest lane instead of four flows in a row. Every verdict comes with screenshots.
+
+```bash
+eas workflow:run qa-swarm.yml
+eas workflow:run qa-swarm.yml -F build_id=<id>
+```
+
+1. **EAS Build compiles the app** for the iOS Simulator with the `simulator` profile, or a build id is passed in. There is no JavaScript, so there is no fingerprint check and no repack step: the binary is the whole app.
+2. **Four lanes run at the same time.** Four iPhone simulators boot with the build installed and launched (`eas simulator:start --type argent --build-id`), each driven by a headless coding agent with one flow: toggle a task on the Tasks tab, add a task, complete one and clear history on the Done tab, or load a demo preset on the Admin tab. The agent reads the accessibility tree, taps through the flow, screenshots each step, and writes a verdict. A lane's job status is its verdict. This example spins up four at once; a flow file and a job add a lane.
+3. **One report stitches the swarm together.** Lane verdicts, timings (parallel against serial), simulator minutes, and the [evidence](https://github.com/jacobhammerle/eas-simulator-evidence) sites land on the run's report page.
+
+The flows are short Markdown files in [.eas/qa-flows/](.eas/qa-flows/), one per lane. The agent prompt is [.eas/qa-swarm-prompt.md](.eas/qa-swarm-prompt.md), and the lane itself is [scripts/agent/qa-flow.sh](scripts/agent/qa-flow.sh). Run one lane from a laptop with `BUILD_ID=<id> FLOW=tasks npm run qa:lane`; it uses your local `claude` login when no agent token is set. The Admin tab has its own lane here. The Expo repo leaves it out because switching update channels reloads the app; this Admin tab has no channels, only demo presets and build provenance.
+
+<br>
+
+```mermaid
+flowchart LR
+    A[eas workflow:run qa-swarm.yml] --> B[EAS Build: xcodebuild for the iOS Simulator]
+    B --> C[iOS: Tasks]
+    B --> D[iOS: Add]
+    B --> E[iOS: Done]
+    B --> F[iOS: Admin]
+    C --> G[One report: verdicts, timings, screenshots]
+    D --> G
+    E --> G
+    F --> G
+```
+
+## Smoke test and live preview
+
+The Expo repo's `@expo-bot` helpers verify a PR on an Expo Simulator and hand out a browser link on request. This repo has the two building blocks as plain workflows, with no bot in front of them. All four [EAS Workflows](.eas/workflows/) run from the CLI (`eas workflow:run <file>`) and on push or pull request once the GitHub repository is connected on expo.dev.
+
+1. **[build-simulator.yml](.eas/workflows/build-simulator.yml)** builds the iOS Simulator app on every push to `main` that touches `ios/`. The run ends with the commands that use the build.
+2. **[simulator-smoke.yml](.eas/workflows/simulator-smoke.yml)** builds (or takes a build id), boots an Expo Simulator with the build, and runs [smoke-test.sh](scripts/expo-simulator/smoke-test.sh): wait for the Tasks screen, add a task, complete it, open Done, open Admin. Each step is screenshotted and the script's exit code is the job's verdict. The screenshots and `report.md` are uploaded as the run's `smoke-test-screenshots` artifact.
+3. **[pr-live-preview.yml](.eas/workflows/pr-live-preview.yml)** builds (or takes a build id) and boots a session that stays up for 30 minutes. The run's last job shows the browser link, so anyone with project access can tap through the native app from a browser tab. With `-F pr_number=<n>` and a `GITHUB_TOKEN`, the link is also posted on the PR.
+4. **[qa-swarm.yml](.eas/workflows/qa-swarm.yml)** is the swarm above.
+
+```bash
+eas workflow:run simulator-smoke.yml
+eas workflow:run simulator-smoke.yml -F build_id=<id> -F device="iPhone 17 Pro"
+eas workflow:run pr-live-preview.yml -F build_id=<id> -F duration_minutes=45
+```
+
+<br>
+
+```mermaid
+flowchart LR
+    A[Push or eas workflow:run] --> B[EAS Build: xcodebuild for the iOS Simulator]
+    B --> C[Expo Simulator boots with --build-id]
+    C --> D[agent-device adds, completes, and checks a task]
+    D --> E[Screenshots and a verdict on the run]
+    C --> F[Browser preview link for a person]
+```
 
 ## Three ways to put a native app on an Expo Simulator
 
@@ -28,45 +85,6 @@ eas simulator:exec npx agent-device@latest screenshot ./artifacts/tasks.png
 ```
 
 The SwiftUI views carry accessibility identifiers (`task-title-input`, `add-task`, `clear-history`, `preset-fresh`, …) so a script or an agent can target controls without coordinates.
-
-## Workflows
-
-Four [EAS Workflows](.eas/workflows/) run on EAS. They work from the CLI (`eas workflow:run <file>`) and on push or pull request once the GitHub repository is connected on expo.dev.
-
-```mermaid
-flowchart LR
-    A[Push or eas workflow:run] --> B[EAS Build: xcodebuild for the iOS Simulator]
-    B --> C[Expo Simulator boots with --build-id]
-    C --> D[agent-device adds, completes, and checks a task]
-    D --> E[Screenshots and a verdict on the run]
-    C --> F[Browser preview link for a person]
-```
-
-1. **[build-simulator.yml](.eas/workflows/build-simulator.yml)** builds the iOS Simulator app on every push to `main` that touches `ios/`. The run ends with the commands that use the build.
-2. **[simulator-smoke.yml](.eas/workflows/simulator-smoke.yml)** builds (or takes a build id), boots an Expo Simulator with the build, and runs [smoke-test.sh](scripts/expo-simulator/smoke-test.sh): wait for the Tasks screen, add a task, complete it, open Done, open Admin. Each step is screenshotted and the script's exit code is the job's verdict. The screenshots and `report.md` are uploaded as the run's `smoke-test-screenshots` artifact.
-3. **[pr-live-preview.yml](.eas/workflows/pr-live-preview.yml)** builds (or takes a build id) and boots a session that stays up for 30 minutes. The run's last job shows the browser link, so anyone with project access can tap through the native app from a browser tab. With `-F pr_number=<n>` and a `GITHUB_TOKEN`, the link is also posted on the PR.
-4. **[qa-swarm.yml](.eas/workflows/qa-swarm.yml)** runs four agent-driven QA lanes in parallel. See below.
-
-```bash
-eas workflow:run simulator-smoke.yml
-eas workflow:run simulator-smoke.yml -F build_id=<id> -F device="iPhone 17 Pro"
-eas workflow:run pr-live-preview.yml -F build_id=<id> -F duration_minutes=45
-```
-
-## QA swarm
-
-One command tests the whole native app at once. Four agents each get their own Expo Simulator and one short flow: toggle a task on the Tasks tab, add a task, complete one and clear history on Done, load a demo preset on Admin. A full pass takes as long as the slowest lane. Every verdict comes with screenshots, and each lane publishes an evidence page built by [eas-simulator-evidence](https://github.com/jacobhammerle/eas-simulator-evidence).
-
-```bash
-eas workflow:run qa-swarm.yml
-eas workflow:run qa-swarm.yml -F build_id=<id>
-```
-
-1. **EAS Build compiles the app** for the iOS Simulator, or a build id is passed in. There is no JavaScript, so there is no fingerprint or repack step.
-2. **Four lanes run at the same time.** Each boots an iPhone 17 in the cloud with the build installed (`--type argent --build-id`), and a headless coding agent reads the accessibility tree, taps through its flow, screenshots each step, and writes a verdict. A lane's job status is its verdict.
-3. **One report stitches the swarm together.** Lane verdicts, timings (parallel against serial), simulator minutes, and evidence links land on the run's report page.
-
-The flows are short Markdown files in [.eas/qa-flows/](.eas/qa-flows/), one per lane. The agent prompt is [.eas/qa-swarm-prompt.md](.eas/qa-swarm-prompt.md), and the lane itself is [scripts/agent/qa-flow.sh](scripts/agent/qa-flow.sh). Run one lane from a laptop with `BUILD_ID=<id> FLOW=tasks npm run qa:lane`; it uses your local `claude` login when no agent token is set.
 
 ## Follow along in Claude Code: `/tab-check`
 
@@ -89,9 +107,23 @@ The scripts are `scripts/tab-check-*.sh`; the tab list and marker texts live in 
 
 ## What the Admin tab shows
 
-A screenshot from a cloud simulator should say which build it shows. [scripts/write-build-info.sh](scripts/write-build-info.sh) is an Xcode run-script phase that stamps `BuildSource` (`eas` or `local`), `EASBuildID`, `EASBuildProfile`, and `GitCommit` into the Info.plist of the built bundle. On EAS Build the values come from the built-in `EAS_BUILD_ID`, `EAS_BUILD_PROFILE`, and `EAS_BUILD_GIT_COMMIT_HASH` variables. The Tasks screen footer shows one line of it (`eas simulator · 1.0.0 (1) · ab12cd3`) and the Admin tab shows all of it, next to the demo-data presets that reset the list mid-demo.
+A screenshot from a cloud simulator should say which build it shows. [scripts/write-build-info.sh](scripts/write-build-info.sh) is an Xcode run-script phase that stamps `BuildSource` (`eas` or `local`), `EASBuildID`, `EASBuildProfile`, and `GitCommit` into the Info.plist of the built bundle. On EAS Build the values come from the built-in `EAS_BUILD_ID`, `EAS_BUILD_PROFILE`, and `EAS_BUILD_GIT_COMMIT_HASH` variables. The Tasks screen footer shows one line of it (`eas simulator · 1.0.0 (1) · ab12cd3`) and the Admin tab shows all of it, next to the demo-data presets that reset the list mid-demo. The Expo app's Admin tab shows update channels instead.
 
-## Run it yourself
+## How this differs from the Expo version
+
+The Expo repo is the full demo; this one keeps the parts that apply to a native app and says which parts do not.
+
+- **No over-the-air updates.** There is no JavaScript bundle, so every change ships as a new build. The Expo repo's fingerprint, repack, and channel-surfing steps have no native equivalent, and no `APP_VARIANT` variable is needed.
+- **No `@expo-bot` comment helpers and no TestFlight feedback loop.** The Expo repo routes PR and issue comments through a GitHub Action to agent workflows, and turns TestFlight feedback into issues, fixes, and verified PRs. Those workflows are not ported here. The smoke test and the live preview are the same building blocks, run directly.
+- **iOS only.** The Expo repo's QA swarm also runs two Android lanes. This repo has one Xcode project and no Android app.
+- **A `Podfile` with no pods.** The default EAS iOS pipeline runs `pod install` before it builds; [ios/Podfile](ios/Podfile) lets that step succeed. Local builds use the `.xcodeproj` directly.
+- **`package.json` and `app.json` are tooling metadata.** EAS CLI reads the project id and the bundle identifier from them. Neither adds a JavaScript runtime.
+- **The EAS build image is pinned** to `macos-tahoe-26.5-xcode-26.6`, the same Xcode the Expo Simulators iOS image runs, in [eas.json](eas.json).
+- **The simulator jobs run on `image: latest`.** The default Linux worker image has Node 18; agent-device needs Node 22, so the custom jobs in the workflows pin the newer image.
+
+## Try it on your own project
+
+See [SETUP.md](SETUP.md). To build and run the app itself:
 
 ```bash
 npm run build:simulator                                   # xcodebuild → build/SimpleTodo.app(.tar.gz)
@@ -100,12 +132,4 @@ npm run smoke -- --build-id <eas-build-id>                # or test an EAS Build
 npm run preview -- --build-id <eas-build-id> --minutes 30 # or get a browser link
 ```
 
-Open [ios/SimpleTodo.xcodeproj](ios/SimpleTodo.xcodeproj) in Xcode to work on the app. The project is generated from [ios/project.yml](ios/project.yml) with [XcodeGen](https://github.com/yonaskolb/XcodeGen); run `npm run xcodegen` after editing the spec and commit both. Setting the repo up on your own EAS project is in [SETUP.md](SETUP.md).
-
-## How this differs from the Expo version
-
-- **No over-the-air updates.** There is no JavaScript bundle, so every change ships as a new build. The Expo repo's fingerprint, repack, and channel-surfing steps have no native equivalent, and the Admin tab shows build provenance instead of update channels.
-- **A `Podfile` with no pods.** The default EAS iOS pipeline runs `pod install` before it builds; [ios/Podfile](ios/Podfile) lets that step succeed. Local builds use the `.xcodeproj` directly.
-- **`package.json` and `app.json` are tooling metadata.** EAS CLI reads the project id and the bundle identifier from them. Neither adds a JavaScript runtime.
-- **The EAS build image is pinned** to `macos-tahoe-26.5-xcode-26.6`, the same Xcode the Expo Simulators iOS image runs, in [eas.json](eas.json).
-- **The simulator jobs run on `image: latest`.** The default Linux worker image has Node 18; agent-device needs Node 22, so the custom jobs in the workflows pin the newer image.
+Open [ios/SimpleTodo.xcodeproj](ios/SimpleTodo.xcodeproj) in Xcode to work on the app. The project is generated from [ios/project.yml](ios/project.yml) with [XcodeGen](https://github.com/yonaskolb/XcodeGen); run `npm run xcodegen` after editing the spec and commit both.

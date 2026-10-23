@@ -2,6 +2,8 @@
 
 Read https://docs.expo.dev/preview/simulators/works-with/native-ios-and-android/ before changing how the app reaches Expo Simulators, and the versioned EAS docs before writing workflow YAML.
 
+This repo is the native counterpart of https://github.com/jacobhammerle/todo-app (the Expo app). Keep `README.md` and `SETUP.md` parallel to that repo's: the same sections in the same order where the feature exists here, the native differences in the README's "How this differs from the Expo version" section, and a setup difference next to the step it changes in `SETUP.md`.
+
 - The app is a SwiftUI project in `ios/SimpleTodo/`: three tabs (`Views/TasksView.swift`, `DoneView.swift`, `AdminView.swift`), an in-memory store in `Model/TodoStore.swift`, and demo presets in `Model/Seed.swift`. There is no Expo SDK, no React Native, and no JavaScript; `package.json` and `app.json` are EAS tooling metadata only. Do not add them.
 - `ios/SimpleTodo.xcodeproj` is generated from `ios/project.yml` with XcodeGen. Edit the spec, run `npm run xcodegen`, and commit both.
 - Before you finish a change: `npm run build:simulator` must succeed, and `eas workflow:validate` must pass on every file in `.eas/workflows/` you touched. To see a UI change, run `npm run smoke -- --app build/SimpleTodo.app` (an Expo Simulator session; it bills while it runs and stops itself) or use the argent MCP server with a local simulator.
