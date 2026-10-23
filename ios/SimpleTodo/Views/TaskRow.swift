@@ -47,6 +47,7 @@ struct TaskRow: View {
                 } label: {
                     Label("Delete", systemImage: "trash")
                 }
+                .tint(Brand.danger)
             }
         }
     }
