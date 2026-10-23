@@ -14,9 +14,9 @@
 #   eas workflow:run simulator-smoke.yml
 #   eas workflow:run simulator-smoke.yml -F build_id=<id> -F device="iPhone 17 Pro"
 #
-# Env vars required (EAS environment variables, production environment):
-#   EXPO_TOKEN_SIMULATOR   personal access token (sessions are actor-gated,
-#                          the worker's own token cannot create them)
+# Env vars (EAS environment variables, production environment):
+#   EXPO_TOKEN_SIMULATOR   optional personal access token; the worker token
+#                          started sessions on its own, this is the fallback
 # ──────────────────────────────────────────────────────────────────────
 name: Smoke test on an Expo Simulator
 
@@ -60,6 +60,9 @@ jobs:
     after: [build]
     environment: production
     runs_on: linux-medium
+    # `latest` has Node 22; the default Linux image ships Node 18, which
+    # agent-device (>= 22.12) and current eas-cli reject.
+    image: latest
     env:
       BUILD_ID: ${{ inputs.build_id || after.build.outputs.build_id }}
       BUILD_STATUS: ${{ after.build.status }}

@@ -15,7 +15,7 @@ Check that your account has Expo Simulators:
 eas simulator:availability --json
 ```
 
-Add one secret to the project's `production` environment on expo.dev. The EAS worker's own token cannot create simulator sessions, so the workflow jobs use a [personal access token](https://docs.expo.dev/accounts/programmatic-access/) instead:
+The workflow jobs start simulator sessions with the EAS worker's own token; a run started with `eas workflow:run` worked that way on this project. If a run fails at `simulator:start` with "Not authorized", add a [personal access token](https://docs.expo.dev/accounts/programmatic-access/) as a secret in the project's `production` environment and the scripts will use it instead:
 
 ```bash
 eas env:create production --name EXPO_TOKEN_SIMULATOR --value <token> --visibility secret

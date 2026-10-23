@@ -15,17 +15,17 @@ ad() { eas simulator:exec npx --yes "agent-device@${AGENT_DEVICE_VERSION}" "$@";
 # The bundle identifier, from app.json so a fork edits one file.
 app_id() { node -p "require('./app.json').expo.ios.bundleIdentifier"; }
 
-# On an EAS worker the auto-injected EXPO_TOKEN is restricted and cannot
-# create simulator sessions (they are actor-gated), so a personal access
-# token stored as the secret EXPO_TOKEN_SIMULATOR becomes EXPO_TOKEN. On a
-# laptop the eas-cli login is used and nothing changes.
+# Which token starts the session. A personal access token stored as the
+# secret EXPO_TOKEN_SIMULATOR wins when present. Without it the worker's own
+# EXPO_TOKEN is used; a run of simulator-smoke.yml started with
+# `eas workflow:run` created its session that way. If a run fails with
+# "Not authorized" at simulator:start, add EXPO_TOKEN_SIMULATOR to the
+# production environment.
 use_simulator_token() {
   if [ -n "${EXPO_TOKEN_SIMULATOR:-}" ]; then
     export EXPO_TOKEN="$EXPO_TOKEN_SIMULATOR"
   elif [ -n "${EAS_BUILD_RUNNER:-}" ]; then
-    echo "EXPO_TOKEN_SIMULATOR is not set. On EAS, simulator:start needs a personal"
-    echo "access token: add it as a secret env var in the production environment."
-    echo "Continuing with the worker token; expect 'Not authorized' if it is restricted."
+    echo "EXPO_TOKEN_SIMULATOR is not set; using the worker's EXPO_TOKEN for simulator:start."
   fi
 }
 

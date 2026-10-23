@@ -12,8 +12,9 @@
 #   eas workflow:run pr-live-preview.yml -F build_id=<id> -F duration_minutes=45 -F device="iPhone 17 Pro"
 #   eas workflow:run pr-live-preview.yml -F pr_number=12     (also comments the link on the PR)
 #
-# Env vars required (EAS environment variables, production environment):
-#   EXPO_TOKEN_SIMULATOR   personal access token (sessions are actor-gated)
+# Env vars (EAS environment variables, production environment):
+#   EXPO_TOKEN_SIMULATOR   optional personal access token; the worker token
+#                          started sessions on its own, this is the fallback
 #   GITHUB_TOKEN           optional; pull-request write access, for the PR comment
 # ──────────────────────────────────────────────────────────────────────
 name: Live preview on an Expo Simulator
@@ -54,6 +55,9 @@ jobs:
     after: [build]
     environment: production
     runs_on: linux-medium
+    # `latest` has Node 22; the default Linux image ships Node 18, which
+    # agent-device (>= 22.12) and current eas-cli reject.
+    image: latest
     env:
       BUILD_ID: ${{ inputs.build_id || after.build.outputs.build_id }}
       BUILD_STATUS: ${{ after.build.status }}
