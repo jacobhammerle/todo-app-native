@@ -16,6 +16,8 @@
 #   EXPO_TOKEN_SIMULATOR   optional personal access token; the worker token
 #                          started sessions on its own, this is the fallback
 #   GITHUB_TOKEN           optional; pull-request write access, for the PR comment
+# The repo for that comment comes from package.json "repository"; an EAS
+# env var named GH_REPO (owner/repo) overrides it.
 # ──────────────────────────────────────────────────────────────────────
 name: Live preview on an Expo Simulator
 
@@ -64,7 +66,6 @@ jobs:
       DEVICE: ${{ inputs.device || 'iPhone 17' }}
       DURATION_MINUTES: ${{ inputs.duration_minutes || '30' }}
       PR_NUMBER: ${{ inputs.pr_number }}
-      GH_REPO: ${{ github.repository }}
     outputs:
       preview_url: ${{ steps.session.outputs.preview_url }}
       session_id: ${{ steps.session.outputs.session_id }}
@@ -80,7 +81,6 @@ jobs:
           fi
           # An uninterpolated or empty pr_number means "no PR comment".
           if ! [[ "$PR_NUMBER" =~ ^[0-9]+$ ]]; then unset PR_NUMBER; fi
-          if [[ "$GH_REPO" == *'${{'* ]]; then unset GH_REPO; fi
           bash scripts/expo-simulator/live-preview.sh --build-id "$BUILD_ID" --device "$DEVICE" --minutes "$DURATION_MINUTES"
 
   preview_link:

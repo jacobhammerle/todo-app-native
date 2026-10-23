@@ -29,6 +29,8 @@ fi
 
 APP_ID=$(app_id)
 use_simulator_token
+# owner/repo for the PR comment: GH_REPO when set, else package.json "repository".
+GH_REPO="${GH_REPO:-$(node -p "String(require('./package.json').repository || '').replace(/^github:/, '')")}"
 
 NAME="Native live preview"
 [ -n "${PR_NUMBER:-}" ] && NAME="PR #${PR_NUMBER} native preview"
