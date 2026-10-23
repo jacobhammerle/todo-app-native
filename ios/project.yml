@@ -42,6 +42,10 @@ targets:
         script: |
           "${SRCROOT}/../scripts/write-build-info.sh"
         basedOnDependencyAnalysis: false
+        # Declaring the processed plist as an input makes the build system run
+        # this script after "Process Info.plist", in incremental builds too.
+        inputFiles:
+          - $(TARGET_BUILD_DIR)/$(INFOPLIST_PATH)
 schemes:
   SimpleTodo:
     build:

@@ -12,7 +12,9 @@ struct AdminView: View {
                 Section {
                     LabeledContent("Bundle ID") {
                         Text(installation.bundleIdentifier)
-                            .font(.subheadline.monospaced())
+                            .font(.caption.monospaced())
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
                     }
                     LabeledContent("Version", value: "\(installation.version) (\(installation.build))")
                     LabeledContent("Configuration", value: installation.configuration)

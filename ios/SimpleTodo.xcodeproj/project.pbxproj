@@ -182,6 +182,7 @@
 			inputFileListPaths = (
 			);
 			inputPaths = (
+				"$(TARGET_BUILD_DIR)/$(INFOPLIST_PATH)",
 			);
 			name = "Stamp build provenance into Info.plist";
 			outputFileListPaths = (
