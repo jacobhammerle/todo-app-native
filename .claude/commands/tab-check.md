@@ -1,29 +1,18 @@
 ---
-description: Walk the native app's three tabs on an Expo Simulator, screenshot each, and report. Usage: /tab-check [build-id | archive-url | path/to/SimpleTodo.app]
+description: Screenshot every bottom tab on the live EAS simulator session
+argument-hint: [session-id]
+allowed-tools: Bash(bash scripts/tab-check-session.sh:*), Bash(bash scripts/tab-check-run.sh:*), Read
 ---
 
-Run the tab check on an Expo Simulator (a cloud iOS Simulator) and narrate each step for the person watching.
+Validate the bottom navigation tabs on my live EAS cloud simulator session. Two scripts do all device work. Run them in order, read the screenshots, and report. Do not add, skip, or replace steps.
 
-Argument: `$ARGUMENTS`. It is one of an EAS build id, an HTTPS URL to a `.tar.gz` of the app, or a local `.app` path. When it is empty, use the newest finished iOS simulator build:
+Optional session ID argument: `$ARGUMENTS`
 
-```
-npx --yes eas-cli@25.3.0 build:list --platform ios --simulator --status finished --limit 1 --json --non-interactive
-```
+1. Resolve the session: `bash scripts/tab-check-session.sh $ARGUMENTS`. It picks the ID above, else the ID in `.env.eas-simulator`, else the single in-progress session matching the platform and type that `scripts/tab-check-start.sh` recorded (default iOS + agent-device). It accepts only an `IN_PROGRESS` session with a reachable daemon (it waits up to 60 s for the daemon) and prints `session:`, `daemon:`, and `preview:` lines. If it exits non-zero, report its output verbatim and stop. Exit 4 means the daemon inside the session exited after 5 idle minutes; nothing in this command can revive it. Do NOT start a new session.
+2. Drive the tabs: `bash scripts/tab-check-run.sh "<session scratchpad directory>/tab-shots"`. It relaunches the native app under test (installs it first if missing), presses Tasks, Done, Admin, verifies each screen by its marker text and selected state, saves `1-tasks.png`, `2-done.png`, `3-admin.png`, and checks the PNGs. If it exits non-zero, report its output verbatim and stop.
+3. Read the 3 PNG files and confirm each shows its own screen with no blank view or error. On Admin, name the "Built by" and "EAS build ID" rows if they are visible.
+4. Report: the session ID and name from step 1, the preview URL, one line per tab saying what it shows, and the 3 file paths.
 
-Steps. Run each command with Bash, show its result in one line, and move on. Do not read project files; everything you need is here.
+If step 1 or 2 reports that the session is not an `agent-device` session, report that verbatim and stop; this command drives agent-device sessions only.
 
-1. Say which source you are using and start the session. The script boots the device, installs and launches the app, and waits for the Tasks screen:
-   - build id: `bash scripts/expo-simulator/smoke-test.sh --build-id <id> --out artifacts/tab-check --keep`
-   - URL: `bash scripts/expo-simulator/smoke-test.sh --archive-url <url> --out artifacts/tab-check --keep`
-   - local app: `bash scripts/expo-simulator/smoke-test.sh --app <path> --out artifacts/tab-check --keep`
-   The script adds the task "Verified on an Expo Simulator", completes it, opens Done, opens Admin, and screenshots each step into `artifacts/tab-check/`. Its last lines are the verdict. The session stays up because of `--keep`.
-2. Read `artifacts/tab-check/report.md` and show the verdict, the session id, and the browser preview link on their own lines, so the person can open the device in a browser.
-3. Look at `artifacts/tab-check/01-tasks.png`, `04-done.png`, and `05-admin.png` with the Read tool. For each tab, say in one or two sentences what the screenshot shows: the summary card counts on Tasks, the completed list on Done, and the "Built by", "EAS profile", and "EAS build ID" rows on Admin.
-4. Check one more thing live through the session (the dotenv `.env.eas-simulator` still points at it):
-   `npx --yes eas-cli@25.3.0 simulator:exec npx --yes agent-device@0.21.31 open com.sunrisesolutions.simpletodo.native --platform ios --foreground`
-   Confirm the tab bar lists Tasks, Done, and Admin in its snapshot.
-5. Stop the session and clear the dotenv:
-   `npx --yes eas-cli@25.3.0 simulator:stop --non-interactive && printf '# managed by eas-cli\n' > .env.eas-simulator`
-6. Finish with a short recap: the verdict, the three screenshots by path, and the build that was tested. If any step failed, say which one and quote the error.
-
-Rules: the session bills while it runs, so never skip step 5, even after a failure. Do not derive tap coordinates from screenshots; the script and agent-device use the accessibility tree.
+Rules: do NOT run `simulator:get`, `simulator:list`, `simulator:exec`, `agent-device`, or `npx` yourself. Do NOT load skills or take snapshots. Do NOT stop the simulator session — I keep it running for the demo.

@@ -68,9 +68,24 @@ eas workflow:run qa-swarm.yml -F build_id=<id>
 
 The flows are short Markdown files in [.eas/qa-flows/](.eas/qa-flows/), one per lane. The agent prompt is [.eas/qa-swarm-prompt.md](.eas/qa-swarm-prompt.md), and the lane itself is [scripts/agent/qa-flow.sh](scripts/agent/qa-flow.sh). Run one lane from a laptop with `BUILD_ID=<id> FLOW=tasks npm run qa:lane`; it uses your local `claude` login when no agent token is set.
 
-## Follow along in Claude Code
+## Follow along in Claude Code: `/tab-check`
 
-`/tab-check [build-id | archive-url | path/to/SimpleTodo.app]` is a slash command in [.claude/commands/](.claude/commands/). Claude starts an Expo Simulator with that build, runs the smoke test, shows the verdict and the browser preview link, reads the three tab screenshots back to you, and stops the session.
+The same pre-demo routine as the Expo app, ported from the employee-onboarding repo. A few minutes before the demo, start a session with the newest simulator build. The script records the session, probes its agent-device daemon, starts a keepalive so the daemon does not idle out after five minutes, and confirms the Tasks screen answers:
+
+```bash
+bash scripts/tab-check-start.sh "Tab check demo"            # newest `simulator` build
+bash scripts/tab-check-start.sh "Tab check demo" <build-id>  # a specific build
+bash scripts/tab-check-preflight.sh                          # re-check a running session
+```
+
+Then, in Claude Code from this repo, run `/tab-check` (optionally with the session id). Claude resolves the live session with `scripts/tab-check-session.sh`, drives the three tabs with `scripts/tab-check-run.sh` (relaunch, press Tasks, Done, Admin, wait for each screen's marker text, screenshot, verify the PNGs), reads the screenshots back to you, and leaves the session running. Stop it yourself when the demo is over:
+
+```bash
+bash scripts/tab-check-keepalive.sh --stop
+eas simulator:stop
+```
+
+The scripts are `scripts/tab-check-*.sh`; the tab list and marker texts live in `scripts/tab-check-lib.sh`.
 
 ## What the Admin tab shows
 
