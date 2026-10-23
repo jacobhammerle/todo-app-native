@@ -43,6 +43,11 @@ _Posted by the expo-bot-issue EAS workflow._" || true
 }
 trap cleanup EXIT
 
+# The badge needs eas-simulator-evidence from this checkout's node_modules;
+# the clone below has none, so it is computed once here (seen in practice:
+# an npx "missing packages" error after the push, before the PR).
+VERDICT_SHOWN=$(verdict_badge "$VERDICT_LINE")
+
 # Issue context and the replication report (the evidence site holds it).
 node "$ORIG_DIR/scripts/agent/gh.mjs" get-issue "$ISSUE_NUMBER" > /tmp/issue-info.json
 ISSUE_TITLE=$(json_file_field /tmp/issue-info.json title)
@@ -60,8 +65,11 @@ THUMBS=$(node -e "
 " "$EVIDENCE_URL")
 
 # The workflow checkout has no pushable git remote, so work in a real clone.
-git clone --depth 1 --branch "$BASE_BRANCH" \
+# -c credential.helper=: the token is in the URL; the macOS keychain helper
+# would otherwise log "failed to store" on every clone and push.
+git -c credential.helper= clone --depth 1 --branch "$BASE_BRANCH" \
   "https://x-access-token:${GITHUB_TOKEN}@github.com/${GH_REPO}.git" "$FIX_DIR"
+git -C "$FIX_DIR" config credential.helper ""
 
 cp "$ORIG_DIR/.eas/expo-bot-fix-prompt.md" /tmp/fix-prompt.md
 printf '\nThe issue under fix is #%s on %s.\n' "$ISSUE_NUMBER" "$GH_REPO" >> /tmp/fix-prompt.md
@@ -75,7 +83,7 @@ bash "$ORIG_DIR/scripts/agent/run-agent.sh" run --prompt-file /tmp/fix-prompt.md
 no_fix_comment() {
   node "$ORIG_DIR/scripts/agent/gh.mjs" comment "$ISSUE_NUMBER" "## 🤖 Agent fix
 
-**Verdict:** $(verdict_badge "$VERDICT_LINE")
+**Verdict:** ${VERDICT_SHOWN}
 
 - ⚠️ **No PR opened** — $1 A human needs to pick this up.
 - 🖼️ **Evidence** — ${EVIDENCE_URL}
@@ -153,7 +161,7 @@ fi
 PR_BODY="## 🤖 Automated ${KIND_WORD} for #${ISSUE_NUMBER}
 
 **Issue:** #${ISSUE_NUMBER} ${ISSUE_TITLE}
-**Replication verdict:** $(verdict_badge "$VERDICT_LINE")
+**Replication verdict:** ${VERDICT_SHOWN}
 **Evidence:** [screenshots](${EVIDENCE_URL}) — an agent ${DID_WORD} on an Expo Simulator; an agent wrote the ${KIND_WORD} on an EAS macOS worker; xcodebuild passes
 
 ${THUMBS}
@@ -199,7 +207,7 @@ PR_WORD="Fix"; [ "$KIND_WORD" = "implementation" ] && PR_WORD="Implementation"
 
 node scripts/agent/gh.mjs comment "$ISSUE_NUMBER" "## 🤖 Agent fix
 
-**Verdict:** $(verdict_badge "$VERDICT_LINE")
+**Verdict:** ${VERDICT_SHOWN}
 
 - 🔧 **${PR_WORD} PR** — ${PR_URL} (compiled with xcodebuild on an EAS macOS worker)${VERIFY_LINE}
 - 🖼️ **Evidence** — ${EVIDENCE_URL}

@@ -52,8 +52,11 @@ if [ "$PR_HEAD_REPO" != "$GH_REPO" ] || [ "$PR_STATE" != "open" ]; then
 fi
 
 # The workflow checkout has no pushable git remote, so work in a real clone.
-git clone --depth 1 --branch "$PR_BRANCH" \
+# -c credential.helper=: the token is in the URL; the macOS keychain helper
+# would otherwise log "failed to store" on every clone and push.
+git -c credential.helper= clone --depth 1 --branch "$PR_BRANCH" \
   "https://x-access-token:${GITHUB_TOKEN}@github.com/${GH_REPO}.git" "$WORK_DIR"
+git -C "$WORK_DIR" config credential.helper ""
 
 cp "$ORIG_DIR/.eas/expo-bot-change-prompt.md" /tmp/change-prompt.md
 printf "\nThe requested change (from the ${BOT} comment on PR #%s): %s\n" \
