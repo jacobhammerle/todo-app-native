@@ -1,0 +1,49 @@
+name: Preview watchdog
+
+# Caps the simulator sessions that the evidence site's "Try this build on a
+# simulator" button starts. That button is an expo.dev create-session link,
+# and links cannot set a duration: their sessions get the account default,
+# while CLI/REST sessions can pass maxDurationMinutes. This workflow stops
+# any evidence-site preview session that is 20+ minutes old through
+# `eas-simulator-evidence sweep` (the page names those sessions
+# "... evidence-site preview"). Other session types and names are ignored.
+#
+# Manual trigger only, as in the Expo repo: on a scheduled run the inputs
+# context is empty, and a job-level env mapping of an input then fails
+# validation. Run it by hand with
+#   eas workflow:run preview-watchdog.yml [-F dry_run=true]
+# Env vars (EAS environment variables, production environment):
+#   EXPO_TOKEN_SIMULATOR   personal access token that can manage sessions
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        type: boolean
+        description: "List what would be stopped without stopping anything"
+        default: false
+      max_age_minutes:
+        type: number
+        description: "Stop evidence-site preview sessions older than this many minutes"
+        default: 20
+
+jobs:
+  stop_stale_previews:
+    name: 1. Stop evidence-site previews past their allowance
+    environment: production
+    runs_on: linux-medium
+    # `latest` has Node 22; the default Linux image ships Node 18.
+    image: latest
+    env:
+      DRY_RUN: ${{ inputs.dry_run }}
+      PREVIEW_MAX_AGE_MINUTES: ${{ inputs.max_age_minutes }}
+    steps:
+      - uses: eas/checkout
+      - uses: eas/install_node_modules
+      - name: Stop stale preview sessions
+        run: |
+          set -euo pipefail
+          # The injected EXPO_TOKEN cannot manage simulator sessions.
+          export EXPO_TOKEN="${EXPO_TOKEN_SIMULATOR:-${EXPO_TOKEN:-}}"
+          FLAG=""
+          [ "$DRY_RUN" = "true" ] && FLAG="--dry-run"
+          npx --no-install eas-simulator-evidence sweep --older-than "$PREVIEW_MAX_AGE_MINUTES" $FLAG
