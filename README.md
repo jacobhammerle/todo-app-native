@@ -9,7 +9,30 @@ The native counterpart of [jacobhammerle/todo-app](https://github.com/jacobhamme
 | Run in the cloud | Expo Simulators, iOS and Android | Expo Simulators, stock iOS Simulator |
 | Drive | argent (QA swarm), agent-device | argent (QA swarm), agent-device (smoke test, live preview, `/tab-check`) |
 | Ship a change | EAS Update when only JavaScript changed, a new build otherwise | A new build, always |
-| Agents | QA swarm, `@expo-bot` PR and issue helpers, TestFlight feedback loop | QA swarm |
+| Agents | QA swarm, `@expo-bot` PR and issue helpers, TestFlight feedback loop | QA swarm, `@expo-bot` PR and issue helpers |
+| Code-writing agents | In the GitHub Action, gated by `tsc` and lint | On an EAS macOS worker, gated by `xcodebuild` |
+
+## Comment-driven Agentic Helpers
+
+Mention the bot on a pull request or an issue and a GitHub Action routes the comment to an [EAS Workflow](https://docs.expo.dev/eas/workflows/get-started/). Every helper runs on an [Expo Simulator](https://docs.expo.dev/eas/simulators/), and every helper that writes Swift runs on an EAS macOS worker and compiles its change with `xcodebuild` before it pushes. The mention is yours to pick: it is the `botHandle` field in [package.json](package.json), `@expo-bot` by default, and every message and branch name follows it.
+
+1. **`@your-bot`** or **`@your-bot review [guidance]`** on a PR. One agent reviews the diff, EAS Build compiles the PR, and a second agent runs the build on an Expo Simulator and taps through the change. The verdict and screenshots land on the PR.
+2. **`@your-bot <instruction>`** on a PR. An agent on a macOS worker applies the change, `xcodebuild` must pass, the commit is pushed to the PR branch, then the review and verification above follow. `@your-bot change <instruction>` stops after the push.
+3. **`@your-bot preview [minutes] [device]`** on a PR. Builds the PR's app, boots an Expo Simulator running it, and posts a browser link, so anyone can drive it. Words in any order, for example `@your-bot preview iPhone 17 Pro for 45`.
+4. **`@your-bot [guidance]`** on an issue. Reproduce on an Expo Simulator; if replicated, a macOS worker writes and compiles a fix, opens a PR, and the PR is verified on a second simulator. Guidance such as missing repro steps goes to the replication agent.
+
+The modes are small shell scripts in [scripts/agent/](scripts/agent/), one per helper, and the agent prompts are Markdown files in [.eas/](.eas/). The bridge is [.github/workflows/expo-bot-bridge.yml](.github/workflows/expo-bot-bridge.yml); only the repository owner, members, and collaborators can drive it, and PRs from forks are refused.
+
+<br>
+
+```mermaid
+flowchart LR
+    A["@your-bot comment"] --> B[GitHub Action]
+    B --> C[Review + EAS Build + verify on an Expo Simulator]
+    B --> D[Apply the change on a macOS worker, xcodebuild, then verify]
+    B --> E[Live preview in the browser, streamed from an Expo Simulator]
+    B --> F[Issue: reproduce, fix and compile on a macOS worker, verify]
+```
 
 ## Agentic QA Swarm
 
@@ -41,19 +64,21 @@ flowchart LR
     F --> G
 ```
 
-## Smoke test and live preview
+## The workflows
 
-The Expo repo's `@expo-bot` helpers verify a PR on an Expo Simulator and hand out a browser link on request. This repo has the two building blocks as plain workflows, with no bot in front of them. All four [EAS Workflows](.eas/workflows/) run from the CLI (`eas workflow:run <file>`) and on push or pull request once the GitHub repository is connected on expo.dev.
+Every bot mode and the swarm is an [EAS Workflow](.eas/workflows/). All of them run from the CLI too (`eas workflow:run <file>`), and the build and smoke workflows run on push or pull request once the GitHub repository is connected on expo.dev.
 
 1. **[build-simulator.yml](.eas/workflows/build-simulator.yml)** builds the iOS Simulator app on every push to `main` that touches `ios/`. The run ends with the commands that use the build.
 2. **[simulator-smoke.yml](.eas/workflows/simulator-smoke.yml)** builds (or takes a build id), boots an Expo Simulator with the build, and runs [smoke-test.sh](scripts/expo-simulator/smoke-test.sh): wait for the Tasks screen, add a task, complete it, open Done, open Admin. Each step is screenshotted and the script's exit code is the job's verdict. The screenshots and `report.md` are uploaded as the run's `smoke-test-screenshots` artifact.
-3. **[pr-live-preview.yml](.eas/workflows/pr-live-preview.yml)** builds (or takes a build id) and boots a session that stays up for 30 minutes. The run's last job shows the browser link, so anyone with project access can tap through the native app from a browser tab. With `-F pr_number=<n>` and a `GITHUB_TOKEN`, the link is also posted on the PR.
-4. **[qa-swarm.yml](.eas/workflows/qa-swarm.yml)** is the swarm above.
+3. **[pr-live-preview.yml](.eas/workflows/pr-live-preview.yml)** builds (or takes a build id) and boots a session that stays up for 30 minutes. The run's last job shows the browser link. With `-F pr_number=<n>` the link is also posted on the PR; this is the `preview` bot mode.
+4. **[expo-bot-verify.yml](.eas/workflows/expo-bot-verify.yml)**, **[expo-bot-change.yml](.eas/workflows/expo-bot-change.yml)**, and **[expo-bot-issue.yml](.eas/workflows/expo-bot-issue.yml)** are the `review`, change, and issue bot modes. The change and fix jobs run on `macos-medium` with the same Xcode image as the build profile.
+5. **[qa-swarm.yml](.eas/workflows/qa-swarm.yml)** is the swarm above.
 
 ```bash
 eas workflow:run simulator-smoke.yml
 eas workflow:run simulator-smoke.yml -F build_id=<id> -F device="iPhone 17 Pro"
 eas workflow:run pr-live-preview.yml -F build_id=<id> -F duration_minutes=45
+eas workflow:run expo-bot-verify.yml -F pr_number=<n>
 ```
 
 <br>
@@ -114,8 +139,10 @@ A screenshot from a cloud simulator should say which build it shows. [scripts/wr
 The Expo repo is the full demo; this one keeps the parts that apply to a native app and says which parts do not.
 
 - **No over-the-air updates.** There is no JavaScript bundle, so every change ships as a new build. The Expo repo's fingerprint, repack, and channel-surfing steps have no native equivalent, and no `APP_VARIANT` variable is needed.
-- **No `@expo-bot` comment helpers and no TestFlight feedback loop.** The Expo repo routes PR and issue comments through a GitHub Action to agent workflows, and turns TestFlight feedback into issues, fixes, and verified PRs. Those workflows are not ported here. The smoke test and the live preview are the same building blocks, run directly.
-- **iOS only.** The Expo repo's QA swarm also runs two Android lanes. This repo has one Xcode project and no Android app.
+- **Every verification is a full build.** The Expo repo verifies a PR in about a minute by reusing a fingerprint-matched build. Here each `review`, `preview`, and issue run starts with an EAS Build of the Xcode project, which takes a few minutes.
+- **Code-writing agents run on EAS macOS workers.** The Expo repo's change agent runs inside the GitHub Action and its fix agent on a Linux worker, both gated by `tsc` and lint. Swift needs Xcode to compile, so the change and fix jobs here run on `macos-medium` and gate on `xcodebuild`. As a result the GitHub side needs only `EXPO_TOKEN`; the agent credential lives on EAS alone.
+- **No TestFlight feedback loop.** The Expo repo turns TestFlight screenshots into issues that the bot then triages. That intake is not ported; the issue mode here starts from a comment.
+- **iOS only.** The Expo repo's QA swarm also runs two Android lanes, and its preview mode takes a platform word. This repo has one Xcode project and no Android app.
 - **A `Podfile` with no pods.** The default EAS iOS pipeline runs `pod install` before it builds; [ios/Podfile](ios/Podfile) lets that step succeed. Local builds use the `.xcodeproj` directly.
 - **`package.json` and `app.json` are tooling metadata.** EAS CLI reads the project id and the bundle identifier from them. Neither adds a JavaScript runtime.
 - **The EAS build image is pinned** to `macos-tahoe-26.5-xcode-26.6`, the same Xcode the Expo Simulators iOS image runs, in [eas.json](eas.json).

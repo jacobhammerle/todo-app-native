@@ -57,7 +57,10 @@ set_output preview_url "$PREVIEW_URL"
 set_output session_id "$SESSION_ID"
 
 if [ -n "${PR_NUMBER:-}" ] && [ -n "${GH_REPO:-}" ] && [ -n "${GITHUB_TOKEN:-}" ]; then
-  BODY=$(printf '## 📱 Live preview\n\n**[Open the %s in your browser](%s)**\n\nThis PR'"'"'s native app is installed and running on an Expo Simulator. The session stops by itself after %s minutes; stop it early with `eas simulator:stop --id %s`.\n\n_Posted by the pr-live-preview EAS workflow._' "$DEVICE" "$PREVIEW_URL" "$MINUTES" "$SESSION_ID")
+  # Same shape as every bot post: "## 🤖 <stage>", a Status line, a short
+  # list, a "_Posted by_" footer.
+  BOT=$(node -p "require('./package.json').botHandle || '@expo-bot'")
+  BODY=$(printf '## 🤖 Live preview\n\n**Status:** ✅ Ready — **[open the %s in your browser](%s)**\n\nThis PR'"'"'s native app is compiled by EAS Build and running on an Expo Simulator.\n\n- ⏱️ **Session length** — stops by itself after %s minutes; stop it early with `eas simulator:stop --id %s`\n- 🔁 **Fresh session** — comment `%s preview [minutes] [device]` again, e.g. `%s preview iPhone 17 Pro for 45`\n\n_Posted by the pr-live-preview EAS workflow._' "$DEVICE" "$PREVIEW_URL" "$MINUTES" "$SESSION_ID" "$BOT" "$BOT")
   node -e '
     const [repo, pr, body] = process.argv.slice(1);
     fetch(`https://api.github.com/repos/${repo}/issues/${pr}/comments`, {

@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "The Simple Todo app as a native SwiftUI app, built by EAS Build and run on Expo Simulators. Tooling metadata only: no JavaScript runtime.",
   "repository": "github:jacobhammerle/todo-app-native",
+  "botHandle": "@expo-bot",
   "license": "MIT",
   "private": true,
   "scripts": {
