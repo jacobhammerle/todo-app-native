@@ -31,7 +31,7 @@ The SwiftUI views carry accessibility identifiers (`task-title-input`, `add-task
 
 ## Workflows
 
-Three [EAS Workflows](.eas/workflows/) run on EAS. They work from the CLI (`eas workflow:run <file>`) and on push or pull request once the GitHub repository is connected on expo.dev.
+Four [EAS Workflows](.eas/workflows/) run on EAS. They work from the CLI (`eas workflow:run <file>`) and on push or pull request once the GitHub repository is connected on expo.dev.
 
 ```mermaid
 flowchart LR
@@ -45,12 +45,32 @@ flowchart LR
 1. **[build-simulator.yml](.eas/workflows/build-simulator.yml)** builds the iOS Simulator app on every push to `main` that touches `ios/`. The run ends with the commands that use the build.
 2. **[simulator-smoke.yml](.eas/workflows/simulator-smoke.yml)** builds (or takes a build id), boots an Expo Simulator with the build, and runs [smoke-test.sh](scripts/expo-simulator/smoke-test.sh): wait for the Tasks screen, add a task, complete it, open Done, open Admin. Each step is screenshotted and the script's exit code is the job's verdict. The screenshots and `report.md` are uploaded as the run's `smoke-test-screenshots` artifact.
 3. **[pr-live-preview.yml](.eas/workflows/pr-live-preview.yml)** builds (or takes a build id) and boots a session that stays up for 30 minutes. The run's last job shows the browser link, so anyone with project access can tap through the native app from a browser tab. With `-F pr_number=<n>` and a `GITHUB_TOKEN`, the link is also posted on the PR.
+4. **[qa-swarm.yml](.eas/workflows/qa-swarm.yml)** runs four agent-driven QA lanes in parallel. See below.
 
 ```bash
 eas workflow:run simulator-smoke.yml
 eas workflow:run simulator-smoke.yml -F build_id=<id> -F device="iPhone 17 Pro"
 eas workflow:run pr-live-preview.yml -F build_id=<id> -F duration_minutes=45
 ```
+
+## QA swarm
+
+One command tests the whole native app at once. Four agents each get their own Expo Simulator and one short flow: toggle a task on the Tasks tab, add a task, complete one and clear history on Done, load a demo preset on Admin. A full pass takes as long as the slowest lane. Every verdict comes with screenshots, and each lane publishes an evidence page built by [eas-simulator-evidence](https://github.com/jacobhammerle/eas-simulator-evidence).
+
+```bash
+eas workflow:run qa-swarm.yml
+eas workflow:run qa-swarm.yml -F build_id=<id>
+```
+
+1. **EAS Build compiles the app** for the iOS Simulator, or a build id is passed in. There is no JavaScript, so there is no fingerprint or repack step.
+2. **Four lanes run at the same time.** Each boots an iPhone 17 in the cloud with the build installed (`--type argent --build-id`), and a headless coding agent reads the accessibility tree, taps through its flow, screenshots each step, and writes a verdict. A lane's job status is its verdict.
+3. **One report stitches the swarm together.** Lane verdicts, timings (parallel against serial), simulator minutes, and evidence links land on the run's report page.
+
+The flows are short Markdown files in [.eas/qa-flows/](.eas/qa-flows/), one per lane. The agent prompt is [.eas/qa-swarm-prompt.md](.eas/qa-swarm-prompt.md), and the lane itself is [scripts/agent/qa-flow.sh](scripts/agent/qa-flow.sh). Run one lane from a laptop with `BUILD_ID=<id> FLOW=tasks npm run qa:lane`; it uses your local `claude` login when no agent token is set.
+
+## Follow along in Claude Code
+
+`/tab-check [build-id | archive-url | path/to/SimpleTodo.app]` is a slash command in [.claude/commands/](.claude/commands/). Claude starts an Expo Simulator with that build, runs the smoke test, shows the verdict and the browser preview link, reads the three tab screenshots back to you, and stops the session.
 
 ## What the Admin tab shows
 

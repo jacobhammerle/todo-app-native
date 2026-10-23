@@ -14,8 +14,9 @@ build/
 # Expo Simulators session config (holds a session auth token)
 .env.eas-simulator
 
-# Smoke-test screenshots and reports
+# Smoke-test screenshots and reports; QA lane evidence
 artifacts/
+evidence/
 
 # Tooling
 node_modules/

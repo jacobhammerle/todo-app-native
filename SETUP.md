@@ -21,6 +21,12 @@ The workflow jobs start simulator sessions with the EAS worker's own token; a ru
 eas env:create production --name EXPO_TOKEN_SIMULATOR --value <token> --visibility secret
 ```
 
+For the QA swarm, add the agent's credential as a secret in the `production` environment: `CLAUDE_CODE_OAUTH_TOKEN` from [`claude setup-token`](https://code.claude.com/docs/en/authentication#generate-a-long-lived-token), or `ANTHROPIC_API_KEY`.
+
+```bash
+eas env:create production --name CLAUDE_CODE_OAUTH_TOKEN --value <token> --visibility secret
+```
+
 Optional, for the PR comment in `pr-live-preview.yml`: a GitHub [fine-grained token](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens) with pull-request write access.
 
 ```bash
@@ -39,6 +45,7 @@ Then on EAS:
 ```bash
 eas build --platform ios --profile simulator
 eas workflow:run simulator-smoke.yml
+eas workflow:run qa-swarm.yml
 ```
 
 [Connect your GitHub repo](https://docs.expo.dev/eas/workflows/get-started/) under the project's settings on expo.dev to run the workflows on push and pull request.

@@ -1,0 +1,243 @@
+# ──────────────────────────────────────────────────────────────────────
+# QA swarm for the native app
+#
+# Four agentic QA lanes run AT ONCE, each on its own Expo Simulator:
+#
+#   1. build:  EAS Build compiles the SwiftUI app for the iOS Simulator
+#              (skipped when a build id is passed in; there is no
+#              JavaScript, so no fingerprint or repack step either)
+#   2. lanes:  four iPhone simulators (tasks, add, done, admin), each
+#              driven by a headless coding agent through argent; a
+#              lane's job status IS its QA verdict
+#   3. stitch: per-lane verdicts, timings (parallel vs serial wall
+#              clock, device commands, simulator-minutes), evidence
+#              sites at qa-ios-<flow>-evidence
+#   4. report: the same summary as the run's report doc
+#
+# Run it:
+#   eas workflow:run qa-swarm.yml
+#   eas workflow:run qa-swarm.yml -F build_id=<id>
+#
+# Env vars (EAS environment variables, production environment):
+#   CLAUDE_CODE_OAUTH_TOKEN   or ANTHROPIC_API_KEY: the agent's credential
+#   EXPO_TOKEN_SIMULATOR      optional personal access token (fallback)
+# Agent prompts live in repo files (EAS caps workflow YAML at 16 kB):
+#   .eas/qa-swarm-prompt.md, .eas/qa-flows/*.md, scripts/agent/qa-flow.sh,
+#   scripts/agent/qa-swarm-report.sh
+# ──────────────────────────────────────────────────────────────────────
+name: QA swarm
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_id:
+        description: Reuse this EAS simulator build instead of building
+        type: string
+        default: ""
+
+concurrency:
+  group: ${{ workflow.filename }}-${{ github.ref }}
+  cancel_in_progress: true
+
+jobs:
+  build:
+    name: 1. Build iOS Simulator app (SwiftUI)
+    type: build
+    if: ${{ !inputs.build_id }}
+    params:
+      platform: ios
+      profile: simulator
+      message: Native SimpleTodo QA swarm
+
+  qa_tasks:
+    name: "2. Lane: iOS · Tasks"
+    after: [build]
+    environment: production
+    runs_on: linux-medium
+    image: latest
+    env:
+      BUILD_ID: ${{ inputs.build_id || after.build.outputs.build_id }}
+      BUILD_STATUS: ${{ after.build.status }}
+      FLOW: tasks
+    outputs:
+      verdict: ${{ steps.qa.outputs.verdict }}
+      evidence_url: ${{ steps.qa.outputs.evidence_url }}
+      metrics: ${{ steps.qa.outputs.metrics }}
+      seconds: ${{ steps.qa.outputs.seconds }}
+      sim_minutes: ${{ steps.qa.outputs.sim_minutes }}
+      thumbs: ${{ steps.qa.outputs.thumbs }}
+    steps:
+      - uses: eas/checkout
+      - uses: eas/install_node_modules
+      - id: qa
+        run: bash scripts/agent/qa-flow.sh
+      - uses: eas/upload_artifact
+        if: ${{ always() }}
+        with:
+          type: other
+          name: qa-ios-tasks-evidence
+          path: evidence/**/*
+
+  qa_add:
+    name: "2. Lane: iOS · Add"
+    after: [build]
+    environment: production
+    runs_on: linux-medium
+    image: latest
+    env:
+      BUILD_ID: ${{ inputs.build_id || after.build.outputs.build_id }}
+      BUILD_STATUS: ${{ after.build.status }}
+      FLOW: add
+    outputs:
+      verdict: ${{ steps.qa.outputs.verdict }}
+      evidence_url: ${{ steps.qa.outputs.evidence_url }}
+      metrics: ${{ steps.qa.outputs.metrics }}
+      seconds: ${{ steps.qa.outputs.seconds }}
+      sim_minutes: ${{ steps.qa.outputs.sim_minutes }}
+      thumbs: ${{ steps.qa.outputs.thumbs }}
+    steps:
+      - uses: eas/checkout
+      - uses: eas/install_node_modules
+      - id: qa
+        run: bash scripts/agent/qa-flow.sh
+      - uses: eas/upload_artifact
+        if: ${{ always() }}
+        with:
+          type: other
+          name: qa-ios-add-evidence
+          path: evidence/**/*
+
+  qa_done:
+    name: "2. Lane: iOS · Done"
+    after: [build]
+    environment: production
+    runs_on: linux-medium
+    image: latest
+    env:
+      BUILD_ID: ${{ inputs.build_id || after.build.outputs.build_id }}
+      BUILD_STATUS: ${{ after.build.status }}
+      FLOW: done
+    outputs:
+      verdict: ${{ steps.qa.outputs.verdict }}
+      evidence_url: ${{ steps.qa.outputs.evidence_url }}
+      metrics: ${{ steps.qa.outputs.metrics }}
+      seconds: ${{ steps.qa.outputs.seconds }}
+      sim_minutes: ${{ steps.qa.outputs.sim_minutes }}
+      thumbs: ${{ steps.qa.outputs.thumbs }}
+    steps:
+      - uses: eas/checkout
+      - uses: eas/install_node_modules
+      - id: qa
+        run: bash scripts/agent/qa-flow.sh
+      - uses: eas/upload_artifact
+        if: ${{ always() }}
+        with:
+          type: other
+          name: qa-ios-done-evidence
+          path: evidence/**/*
+
+  qa_admin:
+    name: "2. Lane: iOS · Admin"
+    after: [build]
+    environment: production
+    runs_on: linux-medium
+    image: latest
+    env:
+      BUILD_ID: ${{ inputs.build_id || after.build.outputs.build_id }}
+      BUILD_STATUS: ${{ after.build.status }}
+      FLOW: admin
+    outputs:
+      verdict: ${{ steps.qa.outputs.verdict }}
+      evidence_url: ${{ steps.qa.outputs.evidence_url }}
+      metrics: ${{ steps.qa.outputs.metrics }}
+      seconds: ${{ steps.qa.outputs.seconds }}
+      sim_minutes: ${{ steps.qa.outputs.sim_minutes }}
+      thumbs: ${{ steps.qa.outputs.thumbs }}
+    steps:
+      - uses: eas/checkout
+      - uses: eas/install_node_modules
+      - id: qa
+        run: bash scripts/agent/qa-flow.sh
+      - uses: eas/upload_artifact
+        if: ${{ always() }}
+        with:
+          type: other
+          name: qa-ios-admin-evidence
+          path: evidence/**/*
+
+  # Runs whatever the lanes did (after, not needs): a red lane must still
+  # be reported.
+  summarize:
+    name: 3. Stitch the swarm report
+    after: [qa_tasks, qa_add, qa_done, qa_admin]
+    environment: production
+    runs_on: linux-medium
+    image: latest
+    env:
+      L1_STATUS: ${{ after.qa_tasks.status }}
+      L1_VERDICT: ${{ after.qa_tasks.outputs.verdict }}
+      L1_EVIDENCE: ${{ after.qa_tasks.outputs.evidence_url }}
+      L1_METRICS: ${{ after.qa_tasks.outputs.metrics }}
+      L1_SECONDS: ${{ after.qa_tasks.outputs.seconds }}
+      L1_SIM_MIN: ${{ after.qa_tasks.outputs.sim_minutes }}
+      L1_THUMBS: ${{ after.qa_tasks.outputs.thumbs }}
+      L2_STATUS: ${{ after.qa_add.status }}
+      L2_VERDICT: ${{ after.qa_add.outputs.verdict }}
+      L2_EVIDENCE: ${{ after.qa_add.outputs.evidence_url }}
+      L2_METRICS: ${{ after.qa_add.outputs.metrics }}
+      L2_SECONDS: ${{ after.qa_add.outputs.seconds }}
+      L2_SIM_MIN: ${{ after.qa_add.outputs.sim_minutes }}
+      L2_THUMBS: ${{ after.qa_add.outputs.thumbs }}
+      L3_STATUS: ${{ after.qa_done.status }}
+      L3_VERDICT: ${{ after.qa_done.outputs.verdict }}
+      L3_EVIDENCE: ${{ after.qa_done.outputs.evidence_url }}
+      L3_METRICS: ${{ after.qa_done.outputs.metrics }}
+      L3_SECONDS: ${{ after.qa_done.outputs.seconds }}
+      L3_SIM_MIN: ${{ after.qa_done.outputs.sim_minutes }}
+      L3_THUMBS: ${{ after.qa_done.outputs.thumbs }}
+      L4_STATUS: ${{ after.qa_admin.status }}
+      L4_VERDICT: ${{ after.qa_admin.outputs.verdict }}
+      L4_EVIDENCE: ${{ after.qa_admin.outputs.evidence_url }}
+      L4_METRICS: ${{ after.qa_admin.outputs.metrics }}
+      L4_SECONDS: ${{ after.qa_admin.outputs.seconds }}
+      L4_SIM_MIN: ${{ after.qa_admin.outputs.sim_minutes }}
+      L4_THUMBS: ${{ after.qa_admin.outputs.thumbs }}
+    outputs:
+      headline: ${{ steps.report.outputs.headline }}
+      timing: ${{ steps.report.outputs.timing }}
+      fleet: ${{ steps.report.outputs.fleet }}
+      thumbs: ${{ steps.report.outputs.thumbs }}
+      lane_1: ${{ steps.report.outputs.lane_1 }}
+      lane_2: ${{ steps.report.outputs.lane_2 }}
+      lane_3: ${{ steps.report.outputs.lane_3 }}
+      lane_4: ${{ steps.report.outputs.lane_4 }}
+    steps:
+      - uses: eas/checkout
+      - uses: eas/install_node_modules
+      - id: report
+        run: bash scripts/agent/qa-swarm-report.sh
+
+  report:
+    name: 4. Swarm report
+    type: doc
+    needs: [summarize]
+    params:
+      md: |
+        # 🐝 QA swarm report
+
+        > ${{ needs.summarize.outputs.headline }}
+
+        Four agents tested the native app at the same time, each on its
+        own Expo Simulator. A lane's job status is its QA verdict.
+
+        - ⏱ **Parallel** — ${{ needs.summarize.outputs.timing }}
+        - 📱 **Fleet** — ${{ needs.summarize.outputs.fleet }}
+
+        ### Lanes
+
+        - ${{ needs.summarize.outputs.lane_1 }}
+        - ${{ needs.summarize.outputs.lane_2 }}
+        - ${{ needs.summarize.outputs.lane_3 }}
+        - ${{ needs.summarize.outputs.lane_4 }}
+
+        ${{ needs.summarize.outputs.thumbs }}

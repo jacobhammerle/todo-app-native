@@ -9,6 +9,10 @@
     "xcodegen": "xcodegen generate --spec ios/project.yml --project ios",
     "build:simulator": "bash scripts/build-simulator-app.sh",
     "smoke": "bash scripts/expo-simulator/smoke-test.sh",
-    "preview": "bash scripts/expo-simulator/live-preview.sh"
+    "preview": "bash scripts/expo-simulator/live-preview.sh",
+    "qa:lane": "bash scripts/agent/qa-flow.sh"
+  },
+  "devDependencies": {
+    "eas-simulator-evidence": "^0.2.3"
   }
 }
