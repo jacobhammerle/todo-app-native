@@ -1,0 +1,141 @@
+# ──────────────────────────────────────────────────────────────────────
+# Expo bot PR verify (native edition)
+#
+# Comment "@expo-bot" or "@expo-bot review [guidance]" on a pull request
+# and this workflow:
+#
+#   1. review:  an agent reads the PR diff and posts a code review
+#   2. build:   EAS Build compiles the PR's SwiftUI app for the iOS
+#               Simulator. The Expo repo finds a fingerprint-matched build
+#               and repacks it with the PR's JavaScript; a native app has
+#               no JavaScript, so every verification is a full build.
+#   3. verify:  an agent drives the build on an Expo Simulator; screenshots
+#               go to EAS Hosting at alias pr-N-evidence, and review,
+#               verdict, and evidence land on the PR
+#   4. blocked: or a note when the build or the verification failed
+#   5. report:  the verification report
+#
+# There is no update channel to publish: the EAS Build is what a human
+# installs. Dispatched by .github/workflows/expo-bot-bridge.yml, which
+# checks out the PR head first, so every job here sees the PR's code.
+# Run manually:
+#   eas workflow:run expo-bot-verify.yml -F pr_number=<N>
+#
+# Env vars (EAS environment variables, production environment):
+#   CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY   the agent's credential
+#   GITHUB_TOKEN              pull-request write access (the comments)
+#   EXPO_TOKEN_SIMULATOR      optional personal access token (fallback)
+# Agent prompts live in repo files (EAS caps workflow YAML at 16 kB):
+#   .eas/expo-bot-verify-prompt.md, scripts/agent/*
+# ──────────────────────────────────────────────────────────────────────
+name: Expo bot PR verify
+
+# A new @expo-bot comment on the same PR replaces the run in progress.
+concurrency:
+  group: ${{ workflow.filename }}-pr-${{ inputs.pr_number }}
+  cancel_in_progress: true
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: The pull request number to review and verify
+        type: string
+        required: true
+      instruction:
+        description: Optional reviewer guidance (text after @expo-bot in the comment)
+        type: string
+        default: ""
+
+jobs:
+  review:
+    name: 1. Review the PR diff
+    environment: production
+    runs_on: linux-medium
+    # `latest` has Node 22; the default Linux image ships Node 18.
+    image: latest
+    env:
+      PR_NUMBER: ${{ inputs.pr_number }}
+    steps:
+      - uses: eas/checkout
+      - name: Review the diff and post a comment
+        run: |
+          set -euo pipefail
+          # A numeric test catches every uninterpolated form.
+          if ! [[ "$PR_NUMBER" =~ ^[0-9]+$ ]]; then
+            echo "pr_number input not interpolated; cannot continue."
+            exit 1
+          fi
+          bash scripts/agent/review-pr.sh
+
+  build:
+    name: 2. Build iOS Simulator app (SwiftUI)
+    type: build
+    params:
+      platform: ios
+      profile: simulator
+      message: PR ${{ inputs.pr_number }} expo-bot verify
+
+  verify:
+    name: 3. Verify on an Expo Simulator
+    # `after`, not `needs`: a failed build still gets a PR comment.
+    after: [build]
+    environment: production
+    runs_on: linux-medium
+    image: latest
+    env:
+      BUILD_ID: ${{ after.build.outputs.build_id }}
+      BUILD_STATUS: ${{ after.build.status }}
+      PR_NUMBER: ${{ inputs.pr_number }}
+      INSTRUCTION: ${{ inputs.instruction }}
+    outputs:
+      evidence_url: ${{ steps.verify.outputs.evidence_url }}
+      verdict: ${{ steps.verify.outputs.verdict }}
+      verdict_shown: ${{ steps.verify.outputs.verdict_shown }}
+      build_url: ${{ steps.verify.outputs.build_url }}
+    steps:
+      - uses: eas/checkout
+      - uses: eas/install_node_modules
+      - id: verify
+        name: Drive the app, collect evidence, comment
+        run: |
+          set -euo pipefail
+          if ! [[ "$PR_NUMBER" =~ ^[0-9]+$ ]]; then
+            echo "pr_number input not interpolated; cannot continue."
+            exit 1
+          fi
+          bash scripts/agent/verify-on-simulator.sh
+      - uses: eas/upload_artifact
+        if: ${{ always() }}
+        with:
+          type: other
+          name: pr-verify-evidence
+          path: evidence/**/*
+
+  blocked:
+    name: 4. Verification failed
+    type: doc
+    after: [verify]
+    if: ${{ after.verify.status == 'failure' }}
+    params:
+      md: |
+        # 🚫 Verification did not complete
+
+        The run failed before a clean verdict and evidence publish. A status
+        comment was posted on the PR; details are in the
+        "3. Verify on an Expo Simulator" job logs, or in
+        "2. Build iOS Simulator app" when the PR did not compile.
+
+  report:
+    name: 5. Verification report
+    type: doc
+    needs: [verify]
+    params:
+      md: |
+        # 🤖 Expo bot verification for PR #${{ inputs.pr_number }}
+
+        > ${{ needs.verify.outputs.verdict_shown }}
+
+        - 🏗️ **[EAS Build](${{ needs.verify.outputs.build_url }})**: the iOS Simulator app compiled from this PR
+        - 🖼️ **[Evidence site](${{ needs.verify.outputs.evidence_url }})**: screenshots from the simulator run
+        - 💬 The code review and this verdict are comments on the PR.

@@ -1,0 +1,89 @@
+# ──────────────────────────────────────────────────────────────────────
+# Expo bot PR change (native edition)
+#
+# Comment "@expo-bot <instruction>" or "@expo-bot change <instruction>" on
+# a pull request and this workflow runs ONE job on an EAS macOS worker:
+# an agent edits the Swift code in a fresh clone of the PR branch, the
+# change must compile with xcodebuild, and the commit is pushed to the PR.
+# With verify=true (the bare "@expo-bot <instruction>" form) the job then
+# dispatches expo-bot-verify on the PR, so the review and the simulator
+# verdict follow on the PR.
+#
+# The Expo repo runs its change agent inside the GitHub Action with a
+# tsc + lint gate. A native change needs Xcode, which the EAS macOS
+# worker has and a Linux Action runner does not; that is why this is an
+# EAS workflow here.
+#
+# Dispatched by .github/workflows/expo-bot-bridge.yml. Run manually:
+#   eas workflow:run expo-bot-change.yml -F pr_number=<N> -F instruction="..."
+#
+# Env vars (EAS environment variables, production environment):
+#   CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY   the agent's credential
+#   GITHUB_TOKEN              contents + pull-request write (push, comment)
+#   EXPO_TOKEN_SIMULATOR      personal access token; dispatches the verify run
+# Agent prompts live in repo files (EAS caps workflow YAML at 16 kB):
+#   .eas/expo-bot-change-prompt.md, scripts/agent/apply-change.sh
+# ──────────────────────────────────────────────────────────────────────
+name: Expo bot PR change
+
+# A new change request on the same PR replaces the run in progress.
+concurrency:
+  group: ${{ workflow.filename }}-pr-${{ inputs.pr_number }}
+  cancel_in_progress: true
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: The pull request to change
+        type: string
+        required: true
+      instruction:
+        description: What to change (text after @expo-bot in the comment)
+        type: string
+        required: true
+      verify:
+        description: '"true" to dispatch expo-bot-verify on the PR after the push'
+        type: string
+        default: "false"
+
+jobs:
+  change:
+    name: 1. Apply the change on a macOS worker
+    environment: production
+    # Xcode: the change is compiled before it is pushed. Same image as the
+    # `simulator` build profile in eas.json.
+    runs_on: macos-medium
+    image: macos-tahoe-26.5-xcode-26.6
+    env:
+      PR_NUMBER: ${{ inputs.pr_number }}
+      INSTRUCTION: ${{ inputs.instruction }}
+      VERIFY: ${{ inputs.verify }}
+    outputs:
+      commit: ${{ steps.change.outputs.commit }}
+      verify_run_url: ${{ steps.change.outputs.verify_run_url }}
+    steps:
+      - uses: eas/checkout
+      - uses: eas/install_node_modules
+      - id: change
+        name: Edit, compile, push, comment
+        run: |
+          set -euo pipefail
+          if ! [[ "$PR_NUMBER" =~ ^[0-9]+$ ]]; then
+            echo "pr_number input not interpolated; cannot continue."
+            exit 1
+          fi
+          bash scripts/agent/apply-change.sh
+
+  report:
+    name: 2. Change report
+    type: doc
+    needs: [change]
+    params:
+      md: |
+        # 🤖 Expo bot change on PR #${{ inputs.pr_number }}
+
+        - ✏️ **Requested**: ${{ inputs.instruction }}
+        - ✅ **Commit**: `${{ needs.change.outputs.commit }}`, compiled with xcodebuild on an EAS macOS worker
+        - 🧪 **Verification run**: ${{ needs.change.outputs.verify_run_url }}
+        - 💬 The summary is a comment on the PR.

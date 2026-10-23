@@ -13,6 +13,7 @@
 #   simulator  read and write files, run scripts/agent/argent.sh (drive a session)
 #   review     read files, write the report
 #   triage     read files, write the result
+#   fix        edit files, run the xcodebuild gate (npm run build:simulator)
 #
 # Contract: the prompt names a file the agent must write (a verdict). The
 # caller reads that file; the CLI's exit code and stdout are not the
@@ -55,7 +56,7 @@ case "$COMMAND" in
       exit 1
     fi
     case "$PROFILE" in
-      simulator|review|triage) ;;
+      simulator|review|triage|fix) ;;
       *) echo "run-agent.sh: unknown profile '${PROFILE}'"; exit 1 ;;
     esac
     runner_check

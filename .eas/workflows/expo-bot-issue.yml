@@ -1,0 +1,158 @@
+# ──────────────────────────────────────────────────────────────────────
+# Expo bot issue triage (native edition)
+#
+# Comment "@expo-bot [guidance]" on a GitHub issue and this workflow:
+#
+#   1. build:    EAS Build compiles the base branch's SwiftUI app for the
+#                iOS Simulator (the Expo repo reuses a fingerprint-matched
+#                build and repacks its JavaScript; a native app has none)
+#   2. validate: an agent tries to replicate the issue on an Expo
+#                Simulator; screenshots go to EAS Hosting at alias
+#                issue-N-evidence, and the verdict lands on the issue
+#   3. fix:      replicated bug or confirmed feature gap -> an agent on an
+#                EAS macOS worker writes the Swift change, compiles it
+#                with xcodebuild (the gate), opens a PR (expo-bot/issue-N),
+#                and dispatches expo-bot-verify on it. The Expo repo gates
+#                with tsc + lint on the Linux worker; Swift needs Xcode.
+#   4. blocked:  or a note when a job failed
+#   5. report:   the triage report
+#
+# Dispatched by .github/workflows/expo-bot-bridge.yml from a base-branch
+# checkout. Run manually:
+#   eas workflow:run expo-bot-issue.yml -F issue_number=<N>
+#
+# Env vars (EAS environment variables, production environment):
+#   CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY   the agent's credential
+#   GITHUB_TOKEN              issues + contents + pull-request write
+#                             (contents: the fix job pushes expo-bot/issue-N)
+#   EXPO_TOKEN_SIMULATOR      personal access token; also dispatches the
+#                             verify run from the fix job
+# Agent prompts live in repo files (EAS caps workflow YAML at 16 kB):
+#   .eas/expo-bot-issue-prompt.md, .eas/expo-bot-fix-prompt.md, scripts/agent/*
+# ──────────────────────────────────────────────────────────────────────
+name: Expo bot issue triage
+
+# A new @expo-bot comment on the same issue replaces the run in progress.
+concurrency:
+  group: ${{ workflow.filename }}-issue-${{ inputs.issue_number }}
+  cancel_in_progress: true
+
+on:
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: The issue number to replicate and triage
+        type: string
+        required: true
+      instruction:
+        description: Optional guidance (text after @expo-bot in the comment)
+        type: string
+        default: ""
+      base_branch:
+        description: Branch the issue is validated against; also the fix PR base
+        type: string
+        default: main
+      auto_verify:
+        description: '"false" to skip dispatching expo-bot-verify on the fix PR'
+        type: string
+        default: "true"
+
+jobs:
+  build:
+    name: 1. Build iOS Simulator app (SwiftUI)
+    type: build
+    params:
+      platform: ios
+      profile: simulator
+      message: Issue ${{ inputs.issue_number }} expo-bot triage
+
+  validate:
+    name: 2. Replicate on an Expo Simulator
+    # `after`, not `needs`: a failed build still gets an issue comment.
+    after: [build]
+    environment: production
+    runs_on: linux-medium
+    # `latest` has Node 22; the default Linux image ships Node 18.
+    image: latest
+    env:
+      BUILD_ID: ${{ after.build.outputs.build_id }}
+      BUILD_STATUS: ${{ after.build.status }}
+      ISSUE_NUMBER: ${{ inputs.issue_number }}
+      INSTRUCTION: ${{ inputs.instruction }}
+    outputs:
+      evidence_url: ${{ steps.validate.outputs.evidence_url }}
+      verdict: ${{ steps.validate.outputs.verdict }}
+      verdict_shown: ${{ steps.validate.outputs.verdict_shown }}
+      fix: ${{ steps.validate.outputs.fix }}
+    steps:
+      - uses: eas/checkout
+      - uses: eas/install_node_modules
+      - id: validate
+        name: Replicate, collect evidence, comment
+        run: |
+          set -euo pipefail
+          if ! [[ "$ISSUE_NUMBER" =~ ^[0-9]+$ ]]; then
+            echo "issue_number input not interpolated; cannot continue."
+            exit 1
+          fi
+          bash scripts/agent/validate-issue.sh
+      - uses: eas/upload_artifact
+        if: ${{ always() }}
+        with:
+          type: other
+          name: issue-triage-evidence
+          path: evidence/**/*
+
+  fix:
+    name: 3. Fix on a macOS worker, open a PR
+    needs: [validate]
+    if: ${{ needs.validate.outputs.fix == 'true' }}
+    environment: production
+    # Xcode: the fix is compiled before it is pushed. Same image as the
+    # `simulator` build profile in eas.json.
+    runs_on: macos-medium
+    image: macos-tahoe-26.5-xcode-26.6
+    env:
+      ISSUE_NUMBER: ${{ inputs.issue_number }}
+      BASE_BRANCH: ${{ inputs.base_branch }}
+      AUTO_VERIFY: ${{ inputs.auto_verify }}
+      EVIDENCE_URL: ${{ needs.validate.outputs.evidence_url }}
+      VERDICT_LINE: ${{ needs.validate.outputs.verdict }}
+    outputs:
+      pr_url: ${{ steps.fix.outputs.pr_url }}
+      verify_run_url: ${{ steps.fix.outputs.verify_run_url }}
+    steps:
+      - uses: eas/checkout
+      - uses: eas/install_node_modules
+      - id: fix
+        name: Write the fix, compile it, push, open the PR
+        run: bash scripts/agent/fix-issue.sh
+
+  blocked:
+    name: 4. Triage failed
+    type: doc
+    after: [validate, fix]
+    if: ${{ after.validate.status == 'failure' || after.fix.status == 'failure' }}
+    params:
+      md: |
+        # 🚫 Issue triage did not complete
+
+        A job failed before a clean outcome. A status comment was posted on
+        the issue; details are in the "2. Replicate on an Expo Simulator"
+        or "3. Fix on a macOS worker" job logs, or in "1. Build iOS
+        Simulator app" when the base branch did not compile.
+
+  report:
+    name: 5. Triage report
+    type: doc
+    needs: [validate]
+    after: [fix]
+    params:
+      md: |
+        # 🤖 Expo bot triage for issue #${{ inputs.issue_number }}
+
+        > ${{ needs.validate.outputs.verdict_shown }}
+
+        - 🔧 **Fix PR**: ${{ after.fix.outputs.pr_url || 'none (not replicated, or the fix step did not open one)' }}
+        - 🧪 **Verification run** (review + a second Expo Simulator; lands on the PR): ${{ after.fix.outputs.verify_run_url || 'none' }}
+        - 🖼️ **[Evidence site](${{ needs.validate.outputs.evidence_url }})**: screenshots from the simulator run

@@ -32,6 +32,9 @@ runner_command() {
   local tools
   case "$2" in
     simulator) tools="Bash(bash scripts/agent/argent.sh*),Read,Glob,Grep,Write" ;;
+    # fix runs on an EAS macOS worker: the only shell command is the
+    # xcodebuild gate, so a Swift change is compiled before it is pushed.
+    fix) tools="Edit,Write,Read,Glob,Grep,Bash(npm run build:simulator)" ;;
     review|triage) tools="Read,Glob,Grep,Write" ;;
     *) echo "claude runner: unknown profile '$2'"; exit 1 ;;
   esac

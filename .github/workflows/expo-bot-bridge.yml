@@ -1,0 +1,156 @@
+name: Expo bot bridge
+
+# Routes "@expo-bot" comments to EAS Workflows. Every mode runs on EAS;
+# this Action only parses the comment, checks who wrote it, and dispatches.
+#
+# On a pull request, by mode:
+#   @expo-bot <instruction>          apply the change on an EAS macOS worker
+#                                    (xcodebuild gate), then review + verify
+#   @expo-bot change <instruction>   apply the change only
+#   @expo-bot review [instruction]   review + verify only, no code changes
+#   @expo-bot preview [minutes] [device]
+#                                    build the PR's app and boot an Expo
+#                                    Simulator running it; the browser
+#                                    link lands on the PR. Words in any
+#                                    order, e.g. "45", "iPhone 17 Pro for 45"
+# A bare "@expo-bot" runs review mode.
+#
+# On an issue (not a PR):
+#   @expo-bot [guidance]             replicate the issue on an Expo
+#                                    Simulator; if replicated, a macOS
+#                                    worker writes and compiles a fix,
+#                                    opens a PR, and verifies it. Guidance
+#                                    (e.g. repro steps) goes to the
+#                                    replication agent.
+#
+# The pieces live in scripts/agent/ so they can be read and run outside
+# Actions: parse-bot-comment.sh (mode + instruction), dispatch.sh (mode ->
+# EAS workflow, plus the status comment), bot-comment.sh (the comment
+# shape). This file only orders them.
+#
+# The `if` condition on the job is a security gate. Only the repository
+# owner, organization members, and collaborators can drive the bot. Do
+# not remove it. Without it, anyone who can comment could run agent
+# workflows against this repository with your credentials. PRs from
+# forks are refused below for the same reason.
+#
+# Bring your own tokens. Nothing here ships with a credential; a fork of
+# this repo does nothing until its owner adds this repository secret
+# (GitHub → Settings → Secrets and variables → Actions):
+#   EXPO_TOKEN    Expo access token that can run EAS workflows
+# The agent credential and the GitHub token live on the EAS side, in the
+# production environment; see SETUP.md. No agent runs in this Action.
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  issues: write
+  # Reading /pulls/N and reacting to a PR comment both need
+  # pull-request access.
+  pull-requests: write
+
+jobs:
+  route:
+    name: Route the bot comment
+    runs-on: ubuntu-latest
+    # Author gate only: the mention itself ("botHandle" in package.json) is
+    # checked by the parse step, which needs the checkout. Comments by
+    # others never start a job; a trusted comment that is not for the bot
+    # ends after the parse step, in seconds.
+    if: >-
+      contains(github.event.comment.body, '@') &&
+      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      ISSUE_NUMBER: ${{ github.event.issue.number }}
+      ACTOR: ${{ github.event.comment.user.login }}
+      TARGET: ${{ github.event.issue.pull_request != null && 'pr' || 'issue' }}
+      ACTION_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      # Just enough of the default branch to read the mention and parse the
+      # comment; the PR head is checked out below once the comment is ours.
+      # Cone mode (the default) includes the root files, so package.json
+      # comes along.
+      - uses: actions/checkout@v5
+        with:
+          sparse-checkout: scripts
+
+      - name: Parse the mode and instruction
+        id: parse
+        env:
+          COMMENT_BODY: ${{ github.event.comment.body }}
+        run: |
+          set -o pipefail
+          bash scripts/agent/parse-bot-comment.sh "$COMMENT_BODY" "$TARGET" | tee -a "$GITHUB_OUTPUT"
+
+      - name: Acknowledge the comment with an eyes reaction
+        if: steps.parse.outputs.mode != 'none'
+        run: |
+          gh api "repos/${GH_REPO}/issues/comments/${{ github.event.comment.id }}/reactions" \
+            -f content=eyes >/dev/null || true
+
+      - name: Look up the PR head (fork guard)
+        id: pr
+        if: steps.parse.outputs.mode != 'none' && env.TARGET == 'pr'
+        run: |
+          # The EAS workflows run PR code with this project's secrets, so
+          # refuse PRs from forks outright.
+          PR_JSON=$(gh api "repos/${GH_REPO}/pulls/${ISSUE_NUMBER}")
+          HEAD_REPO=$(echo "$PR_JSON" | jq -r '.head.repo.full_name')
+          HEAD_BRANCH=$(echo "$PR_JSON" | jq -r '.head.ref')
+          STATE=$(echo "$PR_JSON" | jq -r '.state')
+          if [ "$HEAD_REPO" != "$GH_REPO" ]; then
+            echo "PR head is fork '$HEAD_REPO'; refusing to run agent workflows on it."
+            exit 1
+          fi
+          if [ "$STATE" != "open" ]; then
+            echo "PR is $STATE; not running the bot on it."
+            exit 1
+          fi
+          echo "branch=$HEAD_BRANCH" >> "$GITHUB_OUTPUT"
+
+      # A PR checks out its head branch: `eas workflow:run` uploads this
+      # checkout, so every EAS job sees the PR's code. An issue checks out
+      # the default branch, which is also the base for a fix PR.
+      - uses: actions/checkout@v5
+        if: steps.parse.outputs.mode != 'none'
+        with:
+          ref: ${{ steps.pr.outputs.branch || github.event.repository.default_branch }}
+
+      - name: Check the secret this bridge needs
+        if: steps.parse.outputs.mode != 'none'
+        env:
+          BOT_HANDLE: ${{ steps.parse.outputs.handle }}
+          MODE: ${{ steps.parse.outputs.mode }}
+          # A secret cannot be read in an `if`; compare it to '' here.
+          HAS_EXPO_TOKEN: ${{ secrets.EXPO_TOKEN != '' }}
+        run: |
+          [ "$HAS_EXPO_TOKEN" = "true" ] && exit 0
+          case "$MODE" in
+            issue) COMMAND="${BOT_HANDLE}" ;;
+            full) COMMAND="${BOT_HANDLE} <instruction>" ;;
+            *) COMMAND="${BOT_HANDLE} ${MODE}" ;;
+          esac
+          bash scripts/agent/bot-comment.sh "🤖 Expo bot" \
+            "⚠️ **This repository has no \`EXPO_TOKEN\` secret**, so \`${COMMAND}\` cannot run. The bot spends only tokens you add yourself: see \"Bring your own tokens\" in SETUP.md, add the secret under Settings → Secrets and variables → Actions, then comment again."
+          exit 1
+
+      - uses: actions/setup-node@v5
+        if: steps.parse.outputs.mode != 'none'
+        with:
+          node-version-file: .nvmrc
+
+      # dispatch.sh posts the status comment itself, or the failure
+      # comment (with a link to this run) when the dispatch does not start.
+      - name: Dispatch the EAS workflow and post the status comment
+        if: steps.parse.outputs.mode != 'none'
+        env:
+          BOT_HANDLE: ${{ steps.parse.outputs.handle }}
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          MODE: ${{ steps.parse.outputs.mode }}
+          INSTRUCTION: ${{ steps.parse.outputs.instruction }}
+          BASE_BRANCH: ${{ github.event.repository.default_branch }}
+        run: bash scripts/agent/dispatch.sh
