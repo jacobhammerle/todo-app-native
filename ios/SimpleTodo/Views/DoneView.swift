@@ -3,6 +3,7 @@ import SwiftUI
 struct DoneView: View {
     @Environment(TodoStore.self) private var store
     @State private var confirmClear = false
+    @State private var taskToRestore: Todo?
 
     var body: some View {
         NavigationStack {
@@ -12,7 +13,9 @@ struct DoneView: View {
                         Text("Nothing completed yet.")
                     } else {
                         ForEach(store.completed) { todo in
-                            TaskRow(todo: todo, showDate: true, onToggle: store.toggle(id:done:))
+                            TaskRow(todo: todo, showDate: true, onToggle: { id, done in
+                                taskToRestore = todo
+                            })
                         }
                     }
                 } header: {
@@ -39,6 +42,21 @@ struct DoneView: View {
             } message: {
                 let count = store.completed.count
                 Text("This removes \(count) completed \(taskWord(count)) for good.")
+            }
+            .alert("Move back to To do?", isPresented: Binding(
+                get: { taskToRestore != nil },
+                set: { if !$0 { taskToRestore = nil } }
+            )) {
+                Button("Cancel", role: .cancel) {}
+                Button("Move") {
+                    if let todo = taskToRestore {
+                        store.toggle(id: todo.id, done: false)
+                    }
+                }
+            } message: {
+                if let todo = taskToRestore {
+                    Text("\"\(todo.title)\" moves back to To do.")
+                }
             }
         }
     }
