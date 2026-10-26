@@ -14,6 +14,7 @@ Test the Tasks tab. One round trip only:
 Out of scope for this lane — do NOT touch these:
 
 - The "Add a task" field and the "Add task" row.
+- The "Complete all" row at the end of "To do". Do not tap it.
 - The "Clear history" row. Do not tap it, and do not report on it.
 - The Admin tab.
 

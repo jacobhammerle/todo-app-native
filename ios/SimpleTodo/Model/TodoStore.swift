@@ -64,6 +64,16 @@ final class TodoStore {
         todos[index].completedAt = done ? Date() : nil
     }
 
+    /// Checks every open task at once. The tasks keep their order in Done
+    /// because they share one completion time.
+    func completeAll() {
+        let now = Date()
+        for index in todos.indices where !todos[index].done {
+            todos[index].done = true
+            todos[index].completedAt = now
+        }
+    }
+
     /// Removes a single task for good.
     func delete(id: String) {
         todos.removeAll { $0.id == id }
