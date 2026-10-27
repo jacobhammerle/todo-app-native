@@ -59,7 +59,7 @@ eas workflow:run qa-swarm.yml -F build_id=<id>
 2. **Four lanes run at the same time.** Four iPhone simulators boot with the build installed, each driven by a headless coding agent with one flow: toggle a task on the Tasks tab, add a task, complete one and clear history on the Done tab, or load a demo preset on the Admin tab. The agent reads the accessibility tree, taps through the flow, screenshots each step, and writes a verdict. A lane's job status is its verdict. This example spins up four at once but you could easily spin up 40.
 3. **One report stitches the swarm together.** Lane verdicts, timings (parallel against serial), simulator minutes, and the [evidence](https://github.com/jacobhammerle/eas-simulator-evidence) sites land on the run's report page.
 
-The flows are short Markdown files in [.eas/qa-flows/](.eas/qa-flows/), one per lane. Add a lane by adding a flow and a job in [qa-swarm.yml](.eas/workflows/qa-swarm.yml). The Admin tab has a lane here: it shows build provenance and demo presets, and there are no update channels to switch, so loading a preset cannot reload the app out from under the agent.
+The flows are short Markdown files in [.eas/qa-flows/](.eas/qa-flows/), one per lane. Add a lane by adding a flow and a job in [qa-swarm.yml](.eas/workflows/qa-swarm.yml). The evidence pages are built by eas-simulator-evidence 0.2.4, and the scripts run eas-cli 26.0.0, the version that package is checked against. The Admin tab has a lane here: it shows build provenance and demo presets, and there are no update channels to switch, so loading a preset cannot reload the app out from under the agent.
 
 <br>
 
