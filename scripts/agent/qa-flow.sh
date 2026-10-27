@@ -48,8 +48,10 @@ cleanup() {
 trap cleanup EXIT
 
 # The evidence folder is uploaded as the lane's artifact even when the lane
-# fails, and an empty folder fails the upload step.
+# fails, and an empty folder fails the upload step. On a laptop a previous
+# lane's screenshots and site would otherwise end up on this lane's page.
 mkdir -p "$EVIDENCE_DIR"
+find "${EVIDENCE_DIR:?}" -mindepth 1 -maxdepth 1 \( -name '*.png' -o -name '*.mp4' -o -name '*.mov' -o -name '*.txt' -o -name site -o -name session \) -exec rm -rf {} +
 printf 'lane=%s\nbuild=%s\n' "$LANE" "$BUILD_ID" > "$EVIDENCE_DIR/lane.txt"
 
 echo "QA lane '${LANE}' against build $BUILD_ID"

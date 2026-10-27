@@ -4,7 +4,9 @@
 
 # One pinned eas-cli for every call: a floating @latest can change the
 # experimental simulator:* commands between runs. EAS_CLI_VERSION overrides.
-export EAS_CLI_VERSION="${EAS_CLI_VERSION:-25.3.0}"
+# 26.0.0 is the version eas-simulator-evidence 0.2.4 is checked against; the
+# variable is exported so the evidence tool runs the same one.
+export EAS_CLI_VERSION="${EAS_CLI_VERSION:-26.0.0}"
 eas() { npx --yes "eas-cli@${EAS_CLI_VERSION}" "$@"; }
 
 # agent-device, run through the session so its daemon URL and token are
