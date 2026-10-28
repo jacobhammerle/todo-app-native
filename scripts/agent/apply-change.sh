@@ -7,8 +7,8 @@
 # expo-bot-verify on the PR from the clone.
 # Requires: PR_NUMBER, INSTRUCTION, GITHUB_TOKEN,
 #           the agent runner's credentials (scripts/agent/run-agent.sh)
-# Optional: VERIFY (default false), EXPO_TOKEN_SIMULATOR (dispatches the
-#           verify run), GH_REPO (owner/repo; default: package.json "repository")
+# Optional: VERIFY (default false), EXPO_TOKEN_SIMULATOR (used first when
+#           set; lib.sh), GH_REPO (owner/repo; default: package.json "repository")
 set -euo pipefail
 
 ORIG_DIR=$(pwd)

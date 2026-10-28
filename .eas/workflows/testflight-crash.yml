@@ -14,8 +14,8 @@
 #   eas workflow:run testflight-crash.yml
 #
 # Env vars (EAS environment variables, production environment):
-#   EXPO_TOKEN_SIMULATOR, the agent runner's credentials, GITHUB_TOKEN
-#   (see testflight-feedback.yml)
+#   the agent runner's credentials, GITHUB_TOKEN, and optionally
+#   EXPO_TOKEN_SIMULATOR (see testflight-feedback.yml)
 # ──────────────────────────────────────────────────────────────────────
 name: TestFlight crash intake
 

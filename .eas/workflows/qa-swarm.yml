@@ -20,7 +20,7 @@
 #
 # Env vars (EAS environment variables, production environment):
 #   CLAUDE_CODE_OAUTH_TOKEN   or ANTHROPIC_API_KEY: the agent's credential
-#   EXPO_TOKEN_SIMULATOR      optional personal access token (fallback)
+#   EXPO_TOKEN_SIMULATOR      optional personal access token; used first when set
 # Agent prompts live in repo files (EAS caps workflow YAML at 16 kB):
 #   .eas/qa-swarm-prompt.md, .eas/qa-flows/*.md, scripts/agent/qa-flow.sh,
 #   scripts/agent/qa-swarm-report.sh

@@ -17,7 +17,7 @@
 # Usage:
 #   bash scripts/expo-simulator/smoke-test.sh --app build/SimpleTodo.app
 #   bash scripts/expo-simulator/smoke-test.sh --build-id <id>
-# Needs: an eas-cli login (or EXPO_TOKEN / EXPO_TOKEN_SIMULATOR), node, npx.
+# Needs: an eas-cli login (or an EXPO_TOKEN in the environment), node, npx.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 # shellcheck disable=SC1091

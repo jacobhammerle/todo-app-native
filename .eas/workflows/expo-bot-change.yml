@@ -20,7 +20,7 @@
 # Env vars (EAS environment variables, production environment):
 #   CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY   the agent's credential
 #   GITHUB_TOKEN              contents + pull-request write (push, comment)
-#   EXPO_TOKEN_SIMULATOR      personal access token; dispatches the verify run
+#   EXPO_TOKEN_SIMULATOR      optional personal access token; used first when set
 # Agent prompts live in repo files (EAS caps workflow YAML at 16 kB):
 #   .eas/expo-bot-change-prompt.md, scripts/agent/apply-change.sh
 # ──────────────────────────────────────────────────────────────────────

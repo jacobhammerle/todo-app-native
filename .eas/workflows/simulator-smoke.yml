@@ -15,8 +15,7 @@
 #   eas workflow:run simulator-smoke.yml -F build_id=<id> -F device="iPhone 17 Pro"
 #
 # Env vars (EAS environment variables, production environment):
-#   EXPO_TOKEN_SIMULATOR   optional personal access token; the worker token
-#                          started sessions on its own, this is the fallback
+#   EXPO_TOKEN_SIMULATOR   optional personal access token; used first when set
 # ──────────────────────────────────────────────────────────────────────
 name: Smoke test on an Expo Simulator
 
