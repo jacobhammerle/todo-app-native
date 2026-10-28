@@ -1,0 +1,73 @@
+name: Expo bot on new pull requests
+
+# Opening a pull request does what commenting "@expo-bot review" on it
+# does: scripts/agent/dispatch.sh (review mode) starts
+# .eas/workflows/expo-bot-verify.yml, which reviews the diff with one agent,
+# verifies the PR's app on an Expo Simulator with another, and posts the
+# review, the verdict, and the evidence on the PR. The status comment
+# lands first. The comment-driven modes stay in expo-bot-bridge.yml; this
+# file only adds the trigger.
+#
+# Skipped on purpose:
+#   - pull requests from forks: the EAS workflow runs PR code with this
+#     project's secrets
+#   - draft pull requests: they run when marked ready for review
+#   - the bot's own fix PRs (branch expo-bot/issue-N): fix-issue.sh already
+#     dispatches the verification for those, so a second run would only
+#     double the cost. Change the prefix here if you rename the bot.
+#   - authors outside the repository: owner, members, and collaborators only
+#
+# Needs the same repository secret as the bridge: EXPO_TOKEN.
+
+on:
+  pull_request:
+    types: [opened, reopened, ready_for_review]
+
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+  review:
+    name: Review and verify the new pull request
+    runs-on: ubuntu-latest
+    if: >-
+      !github.event.pull_request.draft &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      !startsWith(github.head_ref, 'expo-bot/') &&
+      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association)
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      ISSUE_NUMBER: ${{ github.event.pull_request.number }}
+      ACTOR: ${{ github.event.pull_request.user.login }}
+      ACTION_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      # The PR's head branch, not the merge ref: `eas workflow:run` uploads
+      # this checkout, so every EAS job sees the PR's code as pushed.
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.head_ref }}
+
+      - name: Check the secret this trigger needs
+        env:
+          # A secret cannot be read in an `if`; compare it to '' here.
+          HAS_EXPO_TOKEN: ${{ secrets.EXPO_TOKEN != '' }}
+        run: |
+          [ "$HAS_EXPO_TOKEN" = "true" ] && exit 0
+          bash scripts/agent/bot-comment.sh "🤖 Expo bot" \
+            "⚠️ **This repository has no \`EXPO_TOKEN\` secret**, so the automatic review of new pull requests cannot run. Add the secret under Settings → Secrets and variables → Actions; until then, comment \`@expo-bot review\` once it is there."
+          exit 1
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+
+      # dispatch.sh posts the status comment itself, or the failure
+      # comment (with a link to this run) when the dispatch does not start.
+      - name: Dispatch the review and the Expo Simulator verification
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          MODE: review
+          INSTRUCTION: ""
+        run: bash scripts/agent/dispatch.sh
