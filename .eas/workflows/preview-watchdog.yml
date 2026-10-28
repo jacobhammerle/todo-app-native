@@ -13,7 +13,7 @@ name: Preview watchdog
 # validation. Run it by hand with
 #   eas workflow:run preview-watchdog.yml [-F dry_run=true]
 # Env vars (EAS environment variables, production environment):
-#   EXPO_TOKEN_SIMULATOR   personal access token that can manage sessions
+#   EXPO_TOKEN_SIMULATOR   optional personal access token; used first when set
 on:
   workflow_dispatch:
     inputs:
@@ -42,7 +42,7 @@ jobs:
       - name: Stop stale preview sessions
         run: |
           set -euo pipefail
-          # The injected EXPO_TOKEN cannot manage simulator sessions.
+          # EXPO_TOKEN_SIMULATOR first when set, else the run's own token.
           export EXPO_TOKEN="${EXPO_TOKEN_SIMULATOR:-${EXPO_TOKEN:-}}"
           FLAG=""
           [ "$DRY_RUN" = "true" ] && FLAG="--dry-run"

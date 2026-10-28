@@ -10,7 +10,7 @@
 # Requires: ISSUE_NUMBER, BASE_BRANCH, GITHUB_TOKEN, EVIDENCE_URL,
 #           VERDICT_LINE, the agent runner's credentials
 # Optional: AUTO_VERIFY (default true; "false" skips the verify dispatch),
-#           EXPO_TOKEN_SIMULATOR (the token that dispatches the verify run),
+#           EXPO_TOKEN_SIMULATOR (used first when set; lib.sh),
 #           GH_REPO (owner/repo; default: package.json "repository")
 set -euo pipefail
 

@@ -17,17 +17,24 @@ ad() { eas simulator:exec npx --yes "agent-device@${AGENT_DEVICE_VERSION}" "$@";
 # The bundle identifier, from app.json so a fork edits one file.
 app_id() { node -p "require('./app.json').expo.ios.bundleIdentifier"; }
 
-# Which token starts the session. A personal access token stored as the
-# secret EXPO_TOKEN_SIMULATOR wins when present. Without it the worker's own
-# EXPO_TOKEN is used; a run of simulator-smoke.yml started with
-# `eas workflow:run` created its session that way. If a run fails with
-# "Not authorized" at simulator:start, add EXPO_TOKEN_SIMULATOR to the
-# production environment.
+# use_simulator_token -> picks the token for simulator sessions. A personal
+# access token stored as the secret EXPO_TOKEN_SIMULATOR is used first when
+# it is set. Otherwise the token already in the environment is used: on an
+# EAS worker that is the EXPO_TOKEN every workflow run gets, on a laptop the
+# eas-cli login. The worker token starts sessions on its own (the first runs
+# of simulator-smoke.yml and pr-live-preview.yml on this project did exactly
+# that, before the project had any secrets). A "Not authorized" from
+# simulator:start means Expo Simulators is not enabled on the account the
+# active token belongs to (check with `eas simulator:availability`), which
+# is the one reason to set EXPO_TOKEN_SIMULATOR: a token from an account
+# that has access. See SETUP.md.
 use_simulator_token() {
   if [ -n "${EXPO_TOKEN_SIMULATOR:-}" ]; then
     export EXPO_TOKEN="$EXPO_TOKEN_SIMULATOR"
   elif [ -n "${EAS_BUILD_RUNNER:-}" ]; then
-    echo "EXPO_TOKEN_SIMULATOR is not set; using the worker's EXPO_TOKEN for simulator:start."
+    echo "EXPO_TOKEN_SIMULATOR is not set; using the workflow run's own EXPO_TOKEN for simulator sessions."
+  else
+    echo "EXPO_TOKEN_SIMULATOR is not set; using the local eas-cli login for simulator sessions."
   fi
 }
 

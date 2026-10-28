@@ -12,7 +12,8 @@
 # Optional: GH_REPO (owner/repo; default: package.json "repository")
 #           INSTRUCTION (guidance from the @expo-bot comment)
 #           BUILD_STATUS (upstream build job status)
-#           EXPO_TOKEN_SIMULATOR, DEVICE (default iPhone 17)
+#           EXPO_TOKEN_SIMULATOR (used first when set; lib.sh),
+#           DEVICE (default iPhone 17)
 set -euo pipefail
 
 # shellcheck disable=SC1091
