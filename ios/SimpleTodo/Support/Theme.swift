@@ -2,9 +2,9 @@ import SwiftUI
 import UIKit
 
 /// Colors from the Expo design-system tokens the original app uses
-/// (brand-blue, status-success, status-danger), light and dark.
+/// (brand-purple, status-success, status-danger), light and dark.
 enum Brand {
-    static let tint = dynamic(light: 0x0072DE, dark: 0x4AA8FF)
+    static let tint = dynamic(light: 0x7C3AED, dark: 0xA78BFA)
     static let success = dynamic(light: 0x098D48, dark: 0x4ADE80)
     static let danger = dynamic(light: 0xCF222E, dark: 0xFF7A7A)
 

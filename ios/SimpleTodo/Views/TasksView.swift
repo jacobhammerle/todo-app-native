@@ -5,6 +5,7 @@ struct TasksView: View {
     @Binding var selectedTab: AppTab
     @State private var title = ""
     @State private var sheetOpen = false
+    @State private var confirmCompleteAll = false
     @FocusState private var titleFocused: Bool
 
     private let installation = Installation.current
@@ -40,6 +41,10 @@ struct TasksView: View {
                                 onDelete: store.delete(id:)
                             )
                         }
+                        if store.active.count > 1 {
+                            FormAction(label: "Complete all") { confirmCompleteAll = true }
+                                .accessibilityIdentifier("complete-all")
+                        }
                     }
                 } header: {
                     Text("To do")
@@ -69,6 +74,13 @@ struct TasksView: View {
                 }
             }
             .navigationTitle("Tasks")
+            .alert("Complete all tasks?", isPresented: $confirmCompleteAll) {
+                Button("Cancel", role: .cancel) {}
+                Button("Complete all") { store.completeAll() }
+            } message: {
+                let count = store.active.count
+                Text("This marks \(count) open \(taskWord(count)) as done. You can uncheck any of them in Done.")
+            }
             .sheet(isPresented: $sheetOpen) {
                 NewTaskSheet { input in
                     store.add(input)
