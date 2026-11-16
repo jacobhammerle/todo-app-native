@@ -45,7 +45,7 @@ jobs:
     steps:
       # The PR's head branch, not the merge ref: `eas workflow:run` uploads
       # this checkout, so every EAS job sees the PR's code as pushed.
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.head_ref }}
 
@@ -59,7 +59,7 @@ jobs:
             "⚠️ **This repository has no \`EXPO_TOKEN\` secret**, so the automatic review of new pull requests cannot run. Add the secret under Settings → Secrets and variables → Actions; until then, comment \`@expo-bot review\` once it is there."
           exit 1
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
 

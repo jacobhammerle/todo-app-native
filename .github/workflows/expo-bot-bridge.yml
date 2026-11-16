@@ -74,7 +74,7 @@ jobs:
       # comment; the PR head is checked out below once the comment is ours.
       # Cone mode (the default) includes the root files, so package.json
       # comes along.
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           sparse-checkout: scripts
 
@@ -115,7 +115,7 @@ jobs:
       # A PR checks out its head branch: `eas workflow:run` uploads this
       # checkout, so every EAS job sees the PR's code. An issue checks out
       # the default branch, which is also the base for a fix PR.
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         if: steps.parse.outputs.mode != 'none'
         with:
           ref: ${{ steps.pr.outputs.branch || github.event.repository.default_branch }}
@@ -138,7 +138,7 @@ jobs:
             "⚠️ **This repository has no \`EXPO_TOKEN\` secret**, so \`${COMMAND}\` cannot run. The bot spends only tokens you add yourself: see \"Bring your own tokens\" in SETUP.md, add the secret under Settings → Secrets and variables → Actions, then comment again."
           exit 1
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         if: steps.parse.outputs.mode != 'none'
         with:
           node-version-file: .nvmrc

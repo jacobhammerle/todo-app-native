@@ -1,6 +1,6 @@
 # Simple Todo, native edition
 
-Read https://docs.expo.dev/preview/simulators/works-with/native-ios-and-android/ before changing how the app reaches Expo Simulators, and the versioned EAS docs before writing workflow YAML.
+Read https://docs.expo.dev/eas/simulators/works-with/native-ios-and-android/ before changing how the app reaches Expo Simulators, and the versioned EAS docs before writing workflow YAML.
 
 This repo is the native counterpart of https://github.com/jacobhammerle/todo-app (the Expo app). Keep `README.md` and `SETUP.md` parallel to that repo's: the same sections in the same order where the feature exists here, the native differences in the README's opening paragraphs, and a setup difference next to the step it changes in `SETUP.md`. The `scripts/tab-check-*.sh` scripts and `/tab-check` are a private demo routine; keep them out of the README.
 
