@@ -11,4 +11,4 @@
 if [ -n "${ARGENT_CALL_LOG:-}" ] && [ "${1:-}" = "run" ] && [ -n "${2:-}" ]; then
   printf '%s\n' "$2" >> "$ARGENT_CALL_LOG" 2>/dev/null || true
 fi
-exec npx --yes -p "@swmansion/argent@${ARGENT_VERSION:-0.23.0}" argent "$@"
+exec npx --yes -p "@swmansion/argent@${ARGENT_VERSION:-0.33.0}" argent "$@"

@@ -54,7 +54,7 @@ jobs:
     # Xcode: the change is compiled before it is pushed. Same image as the
     # `simulator` build profile in eas.json.
     runs_on: macos-medium
-    image: macos-tahoe-26.5-xcode-26.6
+    image: macos-tahoe-26.6-xcode-27.2
     env:
       PR_NUMBER: ${{ inputs.pr_number }}
       INSTRUCTION: ${{ inputs.instruction }}

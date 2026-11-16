@@ -5,12 +5,12 @@
 # the TAB_CHECK_* env vars when you need a newer one.
 #
 # Ported from the employee-onboarding repo on 2026-10-23 for the native app.
-# eas-cli 25.3.0 and agent-device 0.21.31 are the pair the native smoke test
-# and QA lanes ran with that day (see scripts/expo-simulator/lib.sh).
+# Updated on 2026-11-16: eas-cli 27.10.0 and agent-device 0.21.38 are the pair
+# the native smoke test passed with that day (see scripts/expo-simulator/lib.sh).
 # agent-device 0.21.x needs Node 22 or newer.
 
-TAB_CHECK_EAS_CLI_VERSION="${TAB_CHECK_EAS_CLI_VERSION:-25.3.0}"
-TAB_CHECK_AGENT_DEVICE_VERSION="${TAB_CHECK_AGENT_DEVICE_VERSION:-0.21.31}"
+TAB_CHECK_EAS_CLI_VERSION="${TAB_CHECK_EAS_CLI_VERSION:-27.10.0}"
+TAB_CHECK_AGENT_DEVICE_VERSION="${TAB_CHECK_AGENT_DEVICE_VERSION:-0.21.38}"
 
 TAB_CHECK_APP_ID="${TAB_CHECK_APP_ID:-com.sunrisesolutions.simpletodo.native}"
 # The eas.json profile whose finished builds tab-check-start.sh may install.

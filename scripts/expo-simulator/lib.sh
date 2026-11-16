@@ -3,15 +3,15 @@
 # not run it. Works on a laptop and inside an EAS Workflows custom job.
 
 # One pinned eas-cli for every call: a floating @latest can change the
-# experimental simulator:* commands between runs. EAS_CLI_VERSION overrides.
-# 26.0.0 is the version eas-simulator-evidence 0.2.4 is checked against; the
+# simulator:* commands between runs. EAS_CLI_VERSION overrides.
+# 27.10.0 is the version eas-simulator-evidence 0.3.0 is checked against; the
 # variable is exported so the evidence tool runs the same one.
-export EAS_CLI_VERSION="${EAS_CLI_VERSION:-26.0.0}"
+export EAS_CLI_VERSION="${EAS_CLI_VERSION:-27.10.0}"
 eas() { npx --yes "eas-cli@${EAS_CLI_VERSION}" "$@"; }
 
 # agent-device, run through the session so its daemon URL and token are
 # loaded from .env.eas-simulator. AGENT_DEVICE_VERSION overrides the pin.
-export AGENT_DEVICE_VERSION="${AGENT_DEVICE_VERSION:-0.21.31}"
+export AGENT_DEVICE_VERSION="${AGENT_DEVICE_VERSION:-0.21.38}"
 ad() { eas simulator:exec npx --yes "agent-device@${AGENT_DEVICE_VERSION}" "$@"; }
 
 # The bundle identifier, from app.json so a fork edits one file.

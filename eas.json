@@ -1,13 +1,13 @@
 {
   "cli": {
-    "version": ">= 25.0.0",
+    "version": ">= 27.0.0",
     "appVersionSource": "remote"
   },
   "build": {
     "base": {
       "ios": {
         "scheme": "SimpleTodo",
-        "image": "macos-tahoe-26.5-xcode-26.6"
+        "image": "macos-tahoe-26.6-xcode-27.2"
       }
     },
     "simulator": {

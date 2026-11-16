@@ -14,6 +14,6 @@
     "qa:lane": "bash scripts/agent/qa-flow.sh"
   },
   "devDependencies": {
-    "eas-simulator-evidence": "0.2.4"
+    "eas-simulator-evidence": "0.3.0"
   }
 }
