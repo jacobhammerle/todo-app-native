@@ -92,9 +92,12 @@ Known UI pitfalls (verified on this app — read carefully):
   tap at that button's center then lands on a suggestion. Re-run describe
   after typing; if a button is covered, first tap a static text label
   (never another field) to dismiss the keyboard, then describe again.
-- Alerts ("Clear history?", "Load \"Fresh start\"?") are native alerts
-  with Cancel and a confirm button; describe lists their buttons. Tap the
-  confirm button's frame center.
+- When two or more tasks are open, a "Complete all" button row sits at
+  the end of the "To do" list. It opens a "Complete all tasks?" alert
+  with Cancel and Complete all; confirming checks every open task.
+- Alerts ("Clear history?", "Complete all tasks?", "Load \"Fresh
+  start\"?") are native alerts with Cancel and a confirm button; describe
+  lists their buttons. Tap the confirm button's frame center.
 - The Admin tab is a long form; "Demo data" is below "Build provenance".
   Swipe up once to reach it, then describe again.
 - If describe returns an empty tree plus a hint, re-run it once with
