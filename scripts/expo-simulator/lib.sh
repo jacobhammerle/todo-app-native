@@ -11,7 +11,7 @@ eas() { npx --yes "eas-cli@${EAS_CLI_VERSION}" "$@"; }
 
 # agent-device, run through the session so its daemon URL and token are
 # loaded from .env.eas-simulator. AGENT_DEVICE_VERSION overrides the pin.
-export AGENT_DEVICE_VERSION="${AGENT_DEVICE_VERSION:-0.21.38}"
+export AGENT_DEVICE_VERSION="${AGENT_DEVICE_VERSION:-0.21.42}"
 ad() { eas simulator:exec npx --yes "agent-device@${AGENT_DEVICE_VERSION}" "$@"; }
 
 # The bundle identifier, from app.json so a fork edits one file.
